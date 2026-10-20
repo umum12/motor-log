@@ -1,0 +1,1994 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AutoLog & MotorLog - Unified Pro Manager</title>
+
+    <!-- ===== PWA (ditambahkan) ===== -->
+    <link rel="manifest" href="./manifest.webmanifest">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="MotorLog Pro">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <!-- ===== /PWA ===== -->
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        if (window.tailwind) tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome & Google Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Visual Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Graceful fallback (ditambahkan): jika CDN Chart.js gagal dimuat, tab Analitik tidak membuat aplikasi error -->
+    <script>
+        if (typeof window.Chart === 'undefined') {
+            window.Chart = function () { this.destroy = function () {}; };
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; user-select: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .btn-touch { transition: transform 0.1s ease, opacity 0.1s ease; }
+        .btn-touch:active { transform: scale(0.96); opacity: 0.9; }
+        .press-hold-active { transform: scale(0.97); filter: brightness(1.1); transition: transform 0.2s; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex justify-center items-center p-0 sm:p-4 transition-colors duration-300">
+
+    <!-- Mobile Device Container Frame -->
+    <div id="appContainer" class="w-full max-w-md h-[100vh] sm:h-[850px] bg-slate-950 text-slate-100 sm:rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden border-0 sm:border-[8px] border-slate-800 transition-colors duration-300">
+
+        <!-- Header Dynamic Vehicle Switcher -->
+        <header class="bg-slate-900/95 dark:bg-slate-900/95 border-b border-slate-800/80 px-3 py-2.5 flex items-center justify-between z-20 shrink-0">
+            <!-- Dynamic Vehicle Tabs -->
+            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5" id="vehicle-switcher-tabs">
+                <!-- Dynamically rendered vehicles -->
+            </div>
+
+            <!-- Controls: Add Vehicle, Theme & Palette Picker -->
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="openModal('modal-add-vehicle')" title="Tambah Kendaraan" class="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center transition border border-amber-500/30 btn-touch text-xs">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button onclick="openThemePicker()" title="Ganti Warna Icon" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition border border-slate-700/60 btn-touch text-xs">
+                    <i class="fas fa-palette"></i>
+                </button>
+                <button onclick="toggleDarkMode()" title="Toggle Dark/Light Mode" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 flex items-center justify-center transition border border-slate-700/60 btn-touch text-xs">
+                    <i id="dark-mode-icon" class="fas fa-sun"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Scrollable Application Content -->
+        <main class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 pb-20">
+
+            <!-- TAB 1: DASHBOARD / BERANDA -->
+            <div id="tab-content-beranda" class="space-y-4">
+                
+                <!-- Closable Notification Banner / Alert Center -->
+                <div id="notificationBanner" class="hidden bg-red-500/10 border border-red-500/30 rounded-2xl p-3 text-xs space-y-2 relative">
+                    <div class="flex items-center justify-between font-bold text-red-400 pr-6">
+                        <span class="flex items-center gap-1.5"><i class="fas fa-bell"></i> Perhatian & Notifikasi Aktif</span>
+                        <span id="notifCountBadge" class="px-2 py-0.5 bg-red-500 text-white rounded-full text-[10px]">0</span>
+                    </div>
+                    <button onclick="closeNotificationBanner()" class="absolute top-2.5 right-3 text-slate-400 hover:text-white font-bold text-sm leading-none">&times;</button>
+                    <div id="notificationList" class="space-y-1 text-slate-300 text-[11px]"></div>
+                </div>
+
+                <!-- Hero Vehicle Card -->
+                <div id="vehicle-hero-card" class="relative rounded-3xl p-4 text-white shadow-xl transition-all duration-300 bg-gradient-to-br from-amber-500 via-amber-600 to-amber-700 overflow-hidden">
+                    <div class="absolute -right-6 -bottom-8 opacity-20 text-[130px] pointer-events-none" id="hero-bg-icon">
+                        <i class="fas fa-motorcycle"></i>
+                    </div>
+                    
+                    <div class="relative z-10 flex justify-between items-start mb-3">
+                        <div class="flex items-center gap-3">
+                            <div id="hero-avatar-box" class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl shadow-inner border border-white/30">
+                                <i id="hero-icon" class="fas fa-motorcycle text-2xl"></i>
+                            </div>
+                            <div>
+                                <h2 id="hero-name" class="font-bold text-base leading-tight">Honda Vario 160</h2>
+                                <span id="hero-plate" class="inline-block mt-0.5 px-2 py-0.5 bg-black/30 rounded text-[10px] font-mono font-medium tracking-wider backdrop-blur-sm">B 4582 SBN</span>
+                            </div>
+                        </div>
+                        <button onclick="openOdoModal()" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold backdrop-blur-md border border-white/30 btn-touch flex items-center gap-1">
+                            <i class="fas fa-pen-to-square"></i> Update
+                        </button>
+                    </div>
+
+                    <div class="relative z-10 grid grid-cols-2 gap-2 pt-2 border-t border-white/20">
+                        <div>
+                            <span class="text-[10px] uppercase tracking-wider text-white/80 block">Odometer Saat Ini</span>
+                            <div class="flex items-baseline gap-1 mt-0.5">
+                                <span id="hero-km" class="text-2xl font-black tracking-tight">12,450</span>
+                                <span class="text-xs text-white/90 font-semibold">KM</span>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="text-[10px] uppercase tracking-wider text-white/80 block">Servis Oli Mesin</span>
+                            <div class="flex items-baseline gap-1 mt-0.5">
+                                <span id="hero-oil" class="text-2xl font-black tracking-tight">550</span>
+                                <span id="hero-oil-unit" class="text-xs text-white/90 font-semibold">KM Lagi</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Action Buttons -->
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="openModal('modal-log')" class="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm hover:border-slate-700 transition flex flex-col items-center text-center gap-1 btn-touch">
+                        <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-sm">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-300">Catat Biaya</span>
+                    </button>
+
+                    <button onclick="openBbmModal()" class="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm hover:border-slate-700 transition flex flex-col items-center text-center gap-1 btn-touch">
+                        <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-sm">
+                            <i class="fas fa-gas-pump"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-300">Isi BBM</span>
+                    </button>
+
+                    <button onclick="openServiceModal()" class="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm hover:border-slate-700 transition flex flex-col items-center text-center gap-1 btn-touch">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-sm">
+                            <i class="fas fa-wrench"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-300">Ganti Part</span>
+                    </button>
+
+                    <button onclick="openTaxModal()" class="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm hover:border-slate-700 transition flex flex-col items-center text-center gap-1 btn-touch">
+                        <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-sm">
+                            <i class="fas fa-id-card"></i>
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-300">Pajak STNK</span>
+                    </button>
+                </div>
+
+                <!-- STNK, Pajak & SIM Reminders Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5 shadow-sm">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fas fa-id-card text-purple-400"></i> Pengingat Pajak, STNK & SIM
+                        </span>
+                        <div class="flex gap-2">
+                            <button onclick="openTaxModal()" class="text-[11px] text-blue-400 font-medium hover:underline">Edit Pajak</button>
+                            <button onclick="openSimModal()" class="text-[11px] text-purple-400 font-medium hover:underline">Edit SIM</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 text-xs">
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 space-y-1">
+                            <span class="text-[9px] text-slate-400 block">Pajak Tahunan</span>
+                            <span class="font-bold text-slate-200 block text-[11px]" id="taxDateDisplay">-- --- ----</span>
+                            <span id="taxBadge" class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">-- Hari</span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 space-y-1">
+                            <span class="text-[9px] text-slate-400 block">Plat 5 Tahun</span>
+                            <span class="font-bold text-slate-200 block text-[11px]" id="stnkDateDisplay">-- --- ----</span>
+                            <span id="stnkBadge" class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">-- Hari</span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800 space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="text-[9px] text-slate-400 block">SIM <span id="simTypeDisplay" class="font-bold text-purple-400">C</span></span>
+                            </div>
+                            <span class="font-bold text-slate-200 block text-[11px]" id="simDateDisplay">-- --- ----</span>
+                            <span id="simBadge" class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">-- Hari</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maintenance Component Warning List -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fas fa-triangle-exclamation text-amber-500"></i> Status Komponen (KM / Usia)
+                        </h3>
+                        <button onclick="switchTab('parts')" class="text-xs text-blue-400 font-medium">Lihat Semua</button>
+                    </div>
+                    <div id="urgentPartsList" class="space-y-2">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Recent Activity Feed -->
+                <div class="space-y-2.5">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fas fa-history text-amber-500"></i> Transaksi Terakhir
+                        </h3>
+                        <button onclick="switchTab('logs')" class="text-xs text-blue-400 font-medium">Lihat Log</button>
+                    </div>
+
+                    <div id="recent-logs-list" class="bg-slate-900 rounded-2xl border border-slate-800 divide-y divide-slate-800/80 overflow-hidden shadow-sm">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- TAB 2: SPAREPART & KONDISI KOMPONEN -->
+            <div id="tab-content-parts" class="hidden space-y-3">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-100">Kondisi & Master Sparepart</h3>
+                        <p class="text-[10px] text-amber-400 font-medium">💡 Klik tombol Edit di kartu untuk ubah Master Data Part!</p>
+                    </div>
+                    <div class="flex gap-1.5">
+                        <button onclick="openModal('modal-add-part')" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-xl text-xs flex items-center gap-1 btn-touch">
+                            <i class="fas fa-plus-circle"></i> Part Baru
+                        </button>
+                        <button onclick="openServiceModal()" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs flex items-center gap-1 btn-touch">
+                            <i class="fas fa-wrench"></i> Servis
+                        </button>
+                    </div>
+                </div>
+
+                <div id="partsContainer" class="space-y-2.5">
+                    <!-- Dynamic rendering by JS -->
+                </div>
+            </div>
+
+            <!-- TAB 3: LOGS & EXPENSES LIST -->
+            <div id="tab-content-logs" class="hidden space-y-3">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="font-bold text-sm text-slate-100">Riwayat Catatan & Pengeluaran</h3>
+                        <p class="text-[10px] text-amber-400 font-medium">💡 Tekan & tahan catatan untuk opsi hapus/detail</p>
+                    </div>
+                    <button onclick="openModal('modal-log')" class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1 btn-touch shrink-0">
+                        <i class="fas fa-plus"></i> Catat Log
+                    </button>
+                </div>
+
+                <div id="full-logs-container" class="space-y-2.5">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- TAB 4: ANALYTICS (EXPANDED) -->
+            <div id="tab-content-analytics" class="hidden space-y-4 text-xs">
+                <h3 class="font-bold text-sm text-slate-100">Analitik & Statistik Kendaraan</h3>
+
+                <!-- Summary Metrics Grid -->
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="bg-slate-900 p-3 rounded-2xl border border-slate-800 space-y-1">
+                        <span class="text-[10px] text-slate-400 block">Total Jarak Tempuh Tercatat</span>
+                        <span class="text-base font-bold text-blue-400" id="analyticTotalKm">0 KM</span>
+                    </div>
+                    <div class="bg-slate-900 p-3 rounded-2xl border border-slate-800 space-y-1">
+                        <span class="text-[10px] text-slate-400 block">Estimasi Biaya / Bulan</span>
+                        <span class="text-base font-bold text-emerald-400" id="analyticMonthlyAvg">Rp 0</span>
+                    </div>
+                </div>
+
+                <!-- Fuel Efficiency Stats Card -->
+                <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm space-y-2.5">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-xs text-slate-300 uppercase tracking-wider">Performa & Efisiensi BBM</h4>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20" id="analyticsAvgFuel">0 KM/L</span>
+                    </div>
+                    <div class="h-40 w-full">
+                        <canvas id="fuelChart"></canvas>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-center pt-2 border-t border-slate-800">
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 block">Total BBM Terisi</span>
+                            <span class="text-xs font-bold text-amber-400" id="totalFuelLiter">0 Liter</span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 block">Biaya / Kilometer</span>
+                            <span class="text-xs font-bold text-emerald-400" id="costPerKmDisplay">Rp 0 / KM</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expense Ratio Chart -->
+                <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm space-y-3">
+                    <h4 class="font-bold text-xs text-slate-300 uppercase tracking-wider">Proporsi Biaya Pengeluaran</h4>
+                    <div class="h-40 w-full flex justify-center">
+                        <canvas id="expenseCategoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Monthly Trend Bar Chart -->
+                <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm space-y-3">
+                    <h4 class="font-bold text-xs text-slate-300 uppercase tracking-wider">Tren Pengeluaran Bulanan</h4>
+                    <div class="h-40 w-full">
+                        <canvas id="monthlyTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: GARASI & SETTINGS -->
+            <div id="tab-content-garasi" class="hidden space-y-4">
+                <h3 class="font-bold text-sm text-slate-100">Profil Garasi & Backup Data</h3>
+
+                <!-- SIM Profile Card -->
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fas fa-id-card text-purple-400"></i> Informasi SIM Pengemudi
+                        </h4>
+                        <button onclick="openSimModal()" class="px-2.5 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/30 rounded-xl text-xs font-semibold btn-touch">Edit SIM</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block">Jenis & No SIM</span>
+                            <span class="font-bold text-slate-200 block mt-0.5" id="garasiSimNumber">SIM C - ----</span>
+                        </div>
+                        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block">Status Masa Berlaku</span>
+                            <span class="font-bold text-slate-200 block mt-0.5" id="garasiSimStatus">-- Hari</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div id="settingVehicleIconBox" class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl font-bold">
+                                <i id="settingVehicleIcon" class="fas fa-motorcycle"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-100" id="settingBikeName">Honda Vario 160</h4>
+                                <p class="text-xs text-slate-400" id="settingBikePlate">Plat: B 4582 SBN</p>
+                            </div>
+                        </div>
+                        <button onclick="openModal('modal-add-vehicle')" class="px-2.5 py-1.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-semibold btn-touch flex items-center gap-1">
+                            <i class="fas fa-plus"></i> Kendaraan
+                        </button>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-800 space-y-2.5">
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Nama Kendaraan</label>
+                            <input type="text" id="inputBikeName" class="w-full bg-slate-950 border border-slate-800 text-xs text-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-400 mb-1">Nomor Polisi (Plat)</label>
+                            <input type="text" id="inputBikePlate" class="w-full bg-slate-950 border border-slate-800 text-xs text-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="saveBikeProfile()" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs shadow-md btn-touch">
+                                Simpan Profil
+                            </button>
+                            <button onclick="deleteCurrentVehicle()" class="px-3 py-2.5 bg-red-500/10 text-red-400 border border-red-500/30 font-semibold rounded-xl text-xs btn-touch">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Backup & Restore Data JSON Section -->
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                    <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fas fa-file-export text-blue-400"></i> Backup & Restore Data JSON
+                    </h4>
+                    <p class="text-[11px] text-slate-400">Ekspor data ke file JSON untuk cadangan atau impor ke perangkat lain.</p>
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button onclick="exportDataJSON()" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5">
+                            <i class="fas fa-download text-amber-400"></i> Ekspor JSON
+                        </button>
+                        <label class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fas fa-upload text-emerald-400"></i> Impor JSON
+                            <input type="file" accept=".json" onchange="importDataJSON(event)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-2">
+                    <h4 class="text-xs font-bold text-slate-200">Reset Total System</h4>
+                    <p class="text-[11px] text-slate-400">Menghapus seluruh data aplikasi dari penyimpanan browser ini.</p>
+                    <button onclick="resetData()" class="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-semibold rounded-xl text-xs btn-touch">
+                        Reset Semua Data Aplikasi
+                    </button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="fixed sm:absolute bottom-0 inset-x-0 bg-slate-900/95 border-t border-slate-800 px-2 py-2 flex justify-around items-center z-40 backdrop-blur-md">
+            <button onclick="switchTab('beranda')" id="nav-beranda" class="flex flex-col items-center py-1 px-2 text-amber-500 transition btn-touch">
+                <i class="fas fa-home text-base"></i>
+                <span class="text-[10px] font-medium mt-0.5">Beranda</span>
+            </button>
+            <button onclick="switchTab('parts')" id="nav-parts" class="flex flex-col items-center py-1 px-2 text-slate-400 hover:text-slate-200 transition btn-touch">
+                <i class="fas fa-layer-group text-base"></i>
+                <span class="text-[10px] font-medium mt-0.5">Komponen</span>
+            </button>
+            <button onclick="switchTab('logs')" id="nav-logs" class="flex flex-col items-center py-1 px-2 text-slate-400 hover:text-slate-200 transition btn-touch">
+                <i class="fas fa-receipt text-base"></i>
+                <span class="text-[10px] font-medium mt-0.5">Catatan</span>
+            </button>
+            <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center py-1 px-2 text-slate-400 hover:text-slate-200 transition btn-touch">
+                <i class="fas fa-chart-pie text-base"></i>
+                <span class="text-[10px] font-medium mt-0.5">Analitik</span>
+            </button>
+            <button onclick="switchTab('garasi')" id="nav-garasi" class="flex flex-col items-center py-1 px-2 text-slate-400 hover:text-slate-200 transition btn-touch">
+                <i class="fas fa-warehouse text-base"></i>
+                <span class="text-[10px] font-medium mt-0.5">Garasi</span>
+            </button>
+        </nav>
+
+        <!-- MODALS SECTION -->
+
+        <!-- MODAL 1: ADD NEW VEHICLE -->
+        <div id="modal-add-vehicle" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3.5 text-xs">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                        <i class="fas fa-car-side text-amber-500"></i> Tambah Kendaraan Baru
+                    </h3>
+                    <button onclick="closeModal('modal-add-vehicle')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+
+                <form onsubmit="saveNewVehicle(event)" class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Tipe Kendaraan</label>
+                            <select id="new-v-type" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-semibold text-slate-200 focus:outline-none focus:border-amber-500">
+                                <option value="motor">🏍️ Sepeda Motor</option>
+                                <option value="car">🚗 Mobil</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Warna Akses</label>
+                            <select id="new-v-color" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-semibold text-slate-200 focus:outline-none focus:border-amber-500">
+                                <option value="amber">Amber Gold</option>
+                                <option value="blue">Blue Cobalt</option>
+                                <option value="emerald">Emerald Green</option>
+                                <option value="rose">Rose Red</option>
+                                <option value="purple">Purple Velvet</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Nama Kendaraan</label>
+                        <input type="text" id="new-v-name" placeholder="Contoh: Yamaha NMAX / Honda Civic" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Nomor Polisi (Plat Nomor)</label>
+                        <input type="text" id="new-v-plate" placeholder="Contoh: B 1234 ABC" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Odometer Awal (KM)</label>
+                        <input type="number" id="new-v-km" placeholder="0" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg transition btn-touch">Simpan Kendaraan Baru</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 2: ADD NEW CUSTOM COMPONENT -->
+        <div id="modal-add-part" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3.5 text-xs">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                        <i class="fas fa-layer-group text-blue-500"></i> Tambah Komponen / Part
+                    </h3>
+                    <button onclick="closeModal('modal-add-part')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+
+                <form onsubmit="saveCustomPart(event)" class="space-y-3">
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Nama Komponen</label>
+                        <input type="text" id="part-name" placeholder="Contoh: Air Radiator / Kampas Kopling" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Maksimal KM</label>
+                            <input type="number" id="part-max-km" placeholder="3000" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Max Usia (Bulan)</label>
+                            <input type="number" id="part-max-months" placeholder="6" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Ikon Komponen</label>
+                        <select id="part-icon" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-semibold text-slate-200 focus:outline-none focus:border-blue-500">
+                            <option value="fa-cog">⚙️ Gear / Umum</option>
+                            <option value="fa-oil-can">🛢️ Oli / Cairan</option>
+                            <option value="fa-bolt">⚡ Listrik / Busi</option>
+                            <option value="fa-circle-notch">⭕ Ban / Wheel</option>
+                            <option value="fa-filter">🌪️ Filter</option>
+                            <option value="fa-car-battery">🔋 Aki / Battery</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition btn-touch">Tambahkan Sparepart</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 2B: EDIT MASTER SPAREPART INTERVAL -->
+        <div id="modal-edit-part" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3.5 text-xs">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                        <i class="fas fa-sliders text-amber-500"></i> Edit Master Interval Part
+                    </h3>
+                    <button onclick="closeModal('modal-edit-part')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+
+                <form onsubmit="updateMasterPart(event)" class="space-y-3">
+                    <input type="hidden" id="edit-part-key">
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Nama Komponen</label>
+                        <input type="text" id="edit-part-name" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Interval Penggantian (KM)</label>
+                            <input type="number" id="edit-part-max-km" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Interval Max Usia (Bulan)</label>
+                            <input type="number" id="edit-part-max-months" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-slate-400 font-medium">ℹ️ Perubahan hanya memengaruhi master data interval penggantian, tanpa mengubah riwayat servis atau catatan yang lalu.</p>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg transition btn-touch">Update Master Data</button>
+                        <button type="button" onclick="deletePartComponent()" class="px-3 py-2.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded-xl font-semibold btn-touch"><i class="fas fa-trash"></i></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 3: LOG ACTIONS (LONG PRESS OPTION) -->
+        <div id="modal-log-action" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-xs rounded-3xl p-5 shadow-2xl space-y-3 text-xs">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2" id="log-action-title">
+                        Detail Catatan Log
+                    </h3>
+                    <button onclick="closeModal('modal-log-action')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+                
+                <div id="log-action-details" class="bg-slate-950 p-3 rounded-xl border border-slate-800/80 space-y-1 text-slate-300">
+                    <!-- Populated by JS -->
+                </div>
+
+                <div class="space-y-2 pt-1">
+                    <button id="log-view-receipt-btn" onclick="" class="hidden w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold rounded-xl btn-touch flex items-center justify-center gap-1.5">
+                        <i class="fas fa-receipt"></i> Lihat Struk Bukti Foto
+                    </button>
+                    <button id="log-delete-btn" onclick="" class="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-semibold rounded-xl btn-touch flex items-center justify-center gap-1.5">
+                        <i class="fas fa-trash-alt"></i> Hapus Catatan Ini
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL 4: GENERAL EXPENSE LOG -->
+        <div id="modal-log" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3.5">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                        <i class="fas fa-edit text-amber-500"></i> Catat Transaksi Pengeluaran
+                    </h3>
+                    <button onclick="closeModal('modal-log')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+
+                <form id="form-log" onsubmit="saveGeneralLog(event)" class="space-y-3 text-xs">
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Kategori</label>
+                        <select id="log-category" onchange="toggleReceiptUploadField()" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-semibold text-slate-200 focus:outline-none focus:border-amber-500">
+                            <option value="BBM">⛽ Bensin / BBM</option>
+                            <option value="ParkirTol">🅿️ Parkir / Tol</option>
+                            <option value="Servis">🔧 Servis & Sparepart</option>
+                            <option value="Pajak">📄 Pajak / Layanan STNK</option>
+                            <option value="Lainnya">📦 Lain-lain</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Judul / Deskripsi Ringkas</label>
+                        <input type="text" id="log-title" placeholder="Contoh: Pertamax / Parkir Mall" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Biaya (Rp)</label>
+                            <input type="number" id="log-cost" placeholder="0" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-400 mb-1">Odometer (KM)</label>
+                            <input type="number" id="log-km" placeholder="Atur KM" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <!-- Receipt Photo Upload Box -->
+                    <div id="receipt-upload-container" class="space-y-1">
+                        <label class="block font-medium text-slate-400">Bukti Foto Struk (BBM & Parkir)</label>
+                        <div class="relative border-2 border-dashed border-slate-800 rounded-xl p-2.5 text-center bg-slate-950 hover:bg-slate-900 transition cursor-pointer">
+                            <input type="file" id="log-receipt-input" accept="image/*" onchange="handleReceiptSelect(event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                            <div id="receipt-upload-placeholder" class="flex flex-col items-center gap-1 text-slate-400">
+                                <i class="fas fa-camera text-lg text-amber-500"></i>
+                                <span class="text-[11px] font-medium text-slate-300">Ambil Foto / Unggah Struk</span>
+                            </div>
+                            <div id="receipt-preview-box" class="hidden flex flex-col items-center gap-2">
+                                <img id="receipt-preview-img" src="" alt="Preview Struk" class="h-24 object-contain rounded-lg border border-slate-700 shadow">
+                                <button type="button" onclick="removeReceiptPhoto(event)" class="text-[11px] text-red-400 font-semibold z-20 flex items-center gap-1">
+                                    <i class="fas fa-trash-alt"></i> Hapus Foto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Catatan Tambahan (Opsional)</label>
+                        <textarea id="log-notes" rows="2" placeholder="Keterangan tempat / rincian..." class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
+                    </div>
+                    <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg transition btn-touch">Simpan Catatan Log</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 5: UPDATE ODOMETER -->
+        <div id="odoModal" class="fixed sm:absolute inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex-col justify-end p-0">
+            <div class="bg-slate-900 border-t border-slate-800 p-5 rounded-t-3xl space-y-4 shadow-2xl">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-100">Update Odometer KM</h3>
+                    <button onclick="closeOdoModal()" class="text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Odometer Terbaru (KM)</label>
+                    <input type="number" id="odoInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 text-base font-bold rounded-xl p-3 focus:outline-none focus:border-amber-500" placeholder="12450">
+                </div>
+                <button onclick="saveOdometer()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs shadow-lg btn-touch">
+                    Simpan Angka KM
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 6: ISI BBM -->
+        <div id="bbmModal" class="fixed sm:absolute inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex-col justify-end">
+            <div class="bg-slate-900 border-t border-slate-800 p-5 rounded-t-3xl space-y-3.5 shadow-2xl text-xs">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-100">Catat Pengisian Bahan Bakar</h3>
+                    <button onclick="closeBbmModal()" class="text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Tanggal</label>
+                        <input type="date" id="bbmDateInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Odometer (KM)</label>
+                        <input type="number" id="bbmOdoInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Jumlah (Liter)</label>
+                        <input type="number" step="0.01" id="bbmLiterInput" placeholder="4.5" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Total Biaya (Rp)</label>
+                        <input type="number" id="bbmCostInput" placeholder="45000" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+                <button onclick="saveBbmLog()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg btn-touch">
+                    Simpan Log BBM
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 7: SERVICE / GANTI KOMPONEN -->
+        <div id="serviceModal" class="fixed sm:absolute inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex-col justify-end">
+            <div class="bg-slate-900 border-t border-slate-800 p-5 rounded-t-3xl space-y-3.5 shadow-2xl text-xs">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-100">Catat Service / Penggantian Part</h3>
+                    <button onclick="closeServiceModal()" class="text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Pilih Komponen</label>
+                    <select id="servicePartSelect" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-blue-500">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Tanggal Ganti</label>
+                        <input type="date" id="serviceDateInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">KM Saat Ganti</label>
+                        <input type="number" id="serviceOdoInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Biaya Component & Jasa (Rp)</label>
+                    <input type="number" id="serviceCostInput" placeholder="65000" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-blue-500">
+                </div>
+                <button onclick="saveServiceLog()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs shadow-lg btn-touch">
+                    Reset Counter KM & Usia Component
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 8: PAJAK & STNK -->
+        <div id="taxModal" class="fixed sm:absolute inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex-col justify-end">
+            <div class="bg-slate-900 border-t border-slate-800 p-5 rounded-t-3xl space-y-3.5 shadow-2xl text-xs">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-100">Atur Tanggal Jatuh Tempo Pajak & STNK</h3>
+                    <button onclick="closeTaxModal()" class="text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Jatuh Tempo Pajak Tahunan</label>
+                    <input type="date" id="taxDateInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Jatuh Tempo Plat STNK 5 Tahun</label>
+                    <input type="date" id="stnkDateInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-blue-500">
+                </div>
+                <button onclick="saveTaxDates()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs shadow-lg btn-touch">
+                    Simpan Tanggal STNK
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 9: SIM EXPIRATION & PROFILE -->
+        <div id="simModal" class="fixed sm:absolute inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex-col justify-end">
+            <div class="bg-slate-900 border-t border-slate-800 p-5 rounded-t-3xl space-y-3.5 shadow-2xl text-xs">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-100">Atur Pengingat & Perpanjangan SIM</h3>
+                    <button onclick="closeSimModal()" class="text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Jenis SIM</label>
+                        <select id="simTypeInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-purple-500">
+                            <option value="C">SIM C (Sepeda Motor)</option>
+                            <option value="A">SIM A (Mobil Penumpang)</option>
+                            <option value="BI">SIM B1 (Bus/Truk)</option>
+                            <option value="BII">SIM B2 (Alat Berat)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Nomor SIM</label>
+                        <input type="text" id="simNumberInput" placeholder="1234-5678-90123" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-purple-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Tanggal Terbit</label>
+                        <input type="date" id="simIssueDateInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-purple-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Tanggal Kedaluwarsa</label>
+                        <input type="date" id="simDateInput" class="w-full bg-slate-950 border border-slate-800 text-slate-100 rounded-xl p-2.5 focus:outline-none focus:border-purple-500">
+                    </div>
+                </div>
+                <button onclick="saveSimDate()" class="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-xl text-xs shadow-lg btn-touch">
+                    Simpan Data & Masa Berlaku SIM
+                </button>
+            </div>
+        </div>
+
+        <!-- MODAL 10: COLOR PALETTE PICKER -->
+        <div id="modal-theme" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+            <div class="bg-slate-900 border border-slate-800 w-full max-w-xs rounded-3xl p-5 shadow-2xl space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                        <i class="fas fa-palette text-amber-500"></i> Ubah Warna Kendaraan
+                    </h3>
+                    <button onclick="closeThemePicker()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+                </div>
+                <p class="text-[11px] text-slate-400">Pilih gradien tema kustom untuk kendaraan aktif Anda.</p>
+                
+                <div class="grid grid-cols-3 gap-2 py-2" id="color-palette-grid">
+                    <!-- Populated by JS -->
+                </div>
+
+                <button onclick="closeThemePicker()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition">Tutup</button>
+            </div>
+        </div>
+
+        <!-- MODAL 11: IMAGE PREVIEW FOR RECEIPTS -->
+        <div id="modal-image-view" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-200 p-4" onclick="closeImageViewModal()">
+            <div class="relative max-w-xs w-full flex flex-col items-center" onclick="event.stopPropagation()">
+                <button onclick="closeImageViewModal()" class="absolute -top-8 right-0 text-white text-xs font-bold hover:text-amber-400">&times; Tutup</button>
+                <img id="modal-view-img" src="" alt="Bukti Struk" class="max-h-[70vh] w-auto rounded-2xl shadow-2xl border border-white/20 object-contain bg-black">
+                <p id="modal-view-title" class="mt-2 text-white text-xs font-medium bg-black/60 px-3 py-1 rounded-full backdrop-blur-md text-center"></p>
+            </div>
+        </div>
+
+        <!-- Toast Notification Box -->
+        <div id="toast" class="fixed sm:absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-slate-100 text-xs font-semibold px-4 py-2.5 rounded-full shadow-2xl opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2 border border-slate-700">
+            <i class="fas fa-check-circle text-emerald-400"></i>
+            <span id="toast-message">Data berhasil diperbarui!</span>
+        </div>
+
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        const COLOR_THEMES = {
+            amber: { name: 'Amber', gradient: 'from-amber-500 via-amber-600 to-amber-700', text: 'text-amber-500', bg: 'bg-amber-500' },
+            blue: { name: 'Blue', gradient: 'from-blue-500 via-blue-600 to-blue-700', text: 'text-blue-500', bg: 'bg-blue-500' },
+            emerald: { name: 'Emerald', gradient: 'from-emerald-500 via-emerald-600 to-emerald-700', text: 'text-emerald-500', bg: 'bg-emerald-500' },
+            rose: { name: 'Rose', gradient: 'from-rose-500 via-rose-600 to-rose-700', text: 'text-rose-500', bg: 'bg-rose-500' },
+            purple: { name: 'Purple', gradient: 'from-purple-500 via-purple-600 to-purple-700', text: 'text-purple-500', bg: 'bg-purple-500' },
+            indigo: { name: 'Indigo', gradient: 'from-indigo-500 via-indigo-600 to-indigo-700', text: 'text-indigo-500', bg: 'bg-indigo-500' }
+        };
+
+        const defaultData = {
+            activeVehicle: 'motor_1',
+            darkMode: true,
+            simData: {
+                type: 'C',
+                number: '9203-1284-0001',
+                issueDate: '2022-05-15',
+                expiryDate: '2027-05-15'
+            },
+            simDate: '2027-05-15', // backwards compatibility
+            vehicles: {
+                motor_1: {
+                    id: 'motor_1',
+                    type: 'motor',
+                    name: 'Honda Vario 160',
+                    plate: 'B 4582 SBN',
+                    icon: 'fa-motorcycle',
+                    color: 'amber',
+                    odometer: 12450,
+                    taxDates: { annual: '2026-11-12', fiveYear: '2028-11-12' },
+                    parts: {
+                        oli_mesin: { name: "Oli Mesin", lastKm: 10000, maxKm: 3000, lastDate: "2026-08-01", maxMonths: 2, icon: "fa-oil-can" },
+                        oli_gardan: { name: "Oli Gardan", lastKm: 8000, maxKm: 8000, lastDate: "2026-02-01", maxMonths: 8, icon: "fa-gears" },
+                        busi: { name: "Busi Spark Plug", lastKm: 6000, maxKm: 8000, lastDate: "2026-01-10", maxMonths: 12, icon: "fa-bolt" },
+                        kampas_rem: { name: "Kampas Rem", lastKm: 5000, maxKm: 10000, lastDate: "2025-11-01", maxMonths: 12, icon: "fa-circle-dot" },
+                        vbelt: { name: "V-Belt / Rantai", lastKm: 2000, maxKm: 20000, lastDate: "2025-05-01", maxMonths: 24, icon: "fa-link" },
+                        filter_udara: { name: "Filter Udara", lastKm: 9000, maxKm: 10000, lastDate: "2026-03-01", maxMonths: 6, icon: "fa-wind" }
+                    },
+                    bbmLogs: [
+                        { id: 1, date: "2026-10-15", odo: 12450, liter: 4.2, cost: 42000 },
+                        { id: 2, date: "2026-10-02", odo: 12280, liter: 4.0, cost: 40000 }
+                    ],
+                    logs: [
+                        { id: 101, category: 'BBM', title: 'Pertamax 4.2L', cost: 42000, km: 12450, date: '2026-10-15', notes: 'Pengisian Full Tank', receipt: '' },
+                        { id: 102, category: 'Servis', title: 'Ganti Oli & Filter Udara', cost: 110000, km: 10000, date: '2026-08-01', notes: 'AHASS Kebayoran', receipt: '' }
+                    ]
+                },
+                car_1: {
+                    id: 'car_1',
+                    type: 'car',
+                    name: 'Honda HR-V RS',
+                    plate: 'B 1088 RFS',
+                    icon: 'fa-car-side',
+                    color: 'blue',
+                    odometer: 32400,
+                    taxDates: { annual: '2027-03-20', fiveYear: '2029-03-20' },
+                    parts: {
+                        oli_mesin: { name: "Oli Mesin Mobil", lastKm: 25000, maxKm: 10000, lastDate: "2026-03-01", maxMonths: 6, icon: "fa-oil-can" },
+                        filter_udara: { name: "Filter Udara", lastKm: 20000, maxKm: 20000, lastDate: "2025-09-01", maxMonths: 12, icon: "fa-wind" },
+                        aki: { name: "Aki Mobil GS", lastKm: 10000, maxKm: 40000, lastDate: "2024-08-01", maxMonths: 24, icon: "fa-car-battery" }
+                    },
+                    bbmLogs: [
+                        { id: 1, date: "2026-10-18", odo: 32400, liter: 35.0, cost: 490000 }
+                    ],
+                    logs: [
+                        { id: 201, category: 'BBM', title: 'Pertamax Turbo 35L', cost: 490000, km: 32400, date: '2026-10-18', notes: 'Rest Area KM 19', receipt: '' },
+                        { id: 202, category: 'ParkirTol', title: 'Tol Jakarta-Cikampek', cost: 27000, km: 32300, date: '2026-10-18', notes: 'E-Toll Tap', receipt: '' }
+                    ]
+                }
+            }
+        };
+
+        let appData = JSON.parse(localStorage.getItem('mogtor_pro_unified_data')) || defaultData;
+        let activeTab = 'beranda';
+        let currentReceiptData = '';
+        let fuelChartInstance = null;
+        let expenseChartInstance = null;
+        let monthlyChartInstance = null;
+        let notificationDismissed = false;
+
+        function saveData() {
+            localStorage.setItem('mogtor_pro_unified_data', JSON.stringify(appData));
+            renderApp();
+        }
+
+        function switchVehicle(id) {
+            appData.activeVehicle = id;
+            notificationDismissed = false;
+            saveData();
+        }
+
+        function switchTab(tabName) {
+            activeTab = tabName;
+            ['beranda', 'parts', 'logs', 'analytics', 'garasi'].forEach(t => {
+                const el = document.getElementById(`tab-content-${t}`);
+                if (el) el.classList.add('hidden');
+                const navBtn = document.getElementById(`nav-${t}`);
+                if (navBtn) navBtn.className = 'flex flex-col items-center py-1 px-2 text-slate-400 hover:text-slate-200 transition btn-touch';
+            });
+
+            document.getElementById(`tab-content-${tabName}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabName}`);
+            if (activeNav) activeNav.className = 'flex flex-col items-center py-1 px-2 text-amber-500 font-semibold transition btn-touch';
+
+            if (tabName === 'logs') renderFullLogs();
+            if (tabName === 'analytics') renderAnalytics();
+            if (tabName === 'parts') renderPartsStatus();
+        }
+
+        function renderApp() {
+            renderVehicleSwitcherTabs();
+            const v = appData.vehicles[appData.activeVehicle];
+            if (!v) return;
+
+            const color = COLOR_THEMES[v.color || (v.type === 'motor' ? 'amber' : 'blue')];
+
+            // Hero Card
+            const heroCard = document.getElementById('vehicle-hero-card');
+            heroCard.className = `relative rounded-3xl p-4 text-white shadow-xl transition-all duration-300 bg-gradient-to-br ${color.gradient} overflow-hidden`;
+
+            document.getElementById('hero-name').innerText = v.name;
+            document.getElementById('hero-plate').innerText = v.plate;
+            document.getElementById('hero-icon').className = `fas ${v.icon} text-2xl`;
+            document.getElementById('hero-bg-icon').innerHTML = `<i class="fas ${v.icon}"></i>`;
+            document.getElementById('hero-km').innerText = v.odometer.toLocaleString('id-ID');
+
+            // Oil Km Estimation
+            const oilPart = v.parts ? v.parts.oli_mesin : null;
+            if (oilPart) {
+                const usedKm = v.odometer - oilPart.lastKm;
+                const kmLeft = oilPart.maxKm - usedKm;
+                if (kmLeft <= 0) {
+                    document.getElementById('hero-oil').innerText = 'Waktunya!';
+                    document.getElementById('hero-oil-unit').innerText = 'Servis';
+                } else {
+                    document.getElementById('hero-oil').innerText = kmLeft.toLocaleString('id-ID');
+                    document.getElementById('hero-oil-unit').innerText = 'KM Lagi';
+                }
+            }
+
+            // Garasi Inputs
+            document.getElementById('settingBikeName').innerText = v.name;
+            document.getElementById('settingBikePlate').innerText = `Plat: ${v.plate}`;
+            document.getElementById('settingVehicleIcon').className = `fas ${v.icon}`;
+            document.getElementById('settingVehicleIconBox').className = `w-12 h-12 rounded-2xl ${color.bg}/20 ${color.text} border border-${v.color}-500/30 flex items-center justify-center text-xl font-bold`;
+            document.getElementById('inputBikeName').value = v.name;
+            document.getElementById('inputBikePlate').value = v.plate;
+
+            renderTaxReminders();
+            renderPartsStatus();
+            renderRecentLogs();
+            populateServicePartSelect();
+            toggleReceiptUploadField();
+            checkNotificationsAndReminders();
+        }
+
+        function renderVehicleSwitcherTabs() {
+            const container = document.getElementById('vehicle-switcher-tabs');
+            container.innerHTML = Object.keys(appData.vehicles).map(key => {
+                const v = appData.vehicles[key];
+                const isActive = appData.activeVehicle === key;
+                const color = COLOR_THEMES[v.color || 'amber'];
+                return `
+                    <button onclick="switchVehicle('${key}')" class="px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 btn-touch ${isActive ? `${color.bg} text-slate-950 font-bold shadow-sm scale-105` : 'bg-slate-950 text-slate-400 border border-slate-800'}">
+                        <i class="fas ${v.icon} text-xs"></i>
+                        <span>${v.name.split(' ')[0]}</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function populateServicePartSelect() {
+            const select = document.getElementById('servicePartSelect');
+            const v = appData.vehicles[appData.activeVehicle];
+            if (!v || !v.parts) return;
+
+            select.innerHTML = Object.keys(v.parts).map(key => `
+                <option value="${key}">${v.parts[key].name}</option>
+            `).join('');
+        }
+
+        // Add New Custom Vehicle
+        function saveNewVehicle(e) {
+            e.preventDefault();
+            const type = document.getElementById('new-v-type').value;
+            const color = document.getElementById('new-v-color').value;
+            const name = document.getElementById('new-v-name').value;
+            const plate = document.getElementById('new-v-plate').value;
+            const km = parseInt(document.getElementById('new-v-km').value) || 0;
+
+            const id = `${type}_${Date.now()}`;
+            appData.vehicles[id] = {
+                id,
+                type,
+                name,
+                plate,
+                icon: type === 'motor' ? 'fa-motorcycle' : 'fa-car-side',
+                color,
+                odometer: km,
+                taxDates: { annual: new Date().toISOString().split('T')[0], fiveYear: new Date().toISOString().split('T')[0] },
+                parts: {
+                    oli_mesin: { name: "Oli Mesin", lastKm: km, maxKm: type === 'motor' ? 3000 : 10000, lastDate: new Date().toISOString().split('T')[0], maxMonths: 6, icon: "fa-oil-can" }
+                },
+                bbmLogs: [],
+                logs: []
+            };
+
+            appData.activeVehicle = id;
+            notificationDismissed = false;
+            saveData();
+            closeModal('modal-add-vehicle');
+            showToast('Kendaraan baru berhasil ditambahkan!');
+        }
+
+        function deleteCurrentVehicle() {
+            const keys = Object.keys(appData.vehicles);
+            if (keys.length <= 1) {
+                showToast('Gagal! Minimal harus ada 1 kendaraan di aplikasi.');
+                return;
+            }
+
+            if (confirm(`Apakah Anda yakin ingin menghapus ${appData.vehicles[appData.activeVehicle].name}?`)) {
+                delete appData.vehicles[appData.activeVehicle];
+                appData.activeVehicle = Object.keys(appData.vehicles)[0];
+                notificationDismissed = false;
+                saveData();
+                showToast('Kendaraan telah dihapus.');
+            }
+        }
+
+        // Add Custom Sparepart Component
+        function saveCustomPart(e) {
+            e.preventDefault();
+            const name = document.getElementById('part-name').value;
+            const maxKm = parseInt(document.getElementById('part-max-km').value) || 5000;
+            const maxMonths = parseInt(document.getElementById('part-max-months').value) || 6;
+            const icon = document.getElementById('part-icon').value;
+
+            const v = appData.vehicles[appData.activeVehicle];
+            const key = `part_${Date.now()}`;
+
+            if (!v.parts) v.parts = {};
+            v.parts[key] = {
+                name,
+                lastKm: v.odometer,
+                maxKm,
+                lastDate: new Date().toISOString().split('T')[0],
+                maxMonths,
+                icon
+            };
+
+            saveData();
+            closeModal('modal-add-part');
+            showToast('Komponen sparepart baru ditambahkan!');
+        }
+
+        // Feature 1: Edit Master Data Sparepart Interval
+        function openEditMasterPartModal(key) {
+            const v = appData.vehicles[appData.activeVehicle];
+            if (!v || !v.parts || !v.parts[key]) return;
+
+            const part = v.parts[key];
+            document.getElementById('edit-part-key').value = key;
+            document.getElementById('edit-part-name').value = part.name;
+            document.getElementById('edit-part-max-km').value = part.maxKm;
+            document.getElementById('edit-part-max-months').value = part.maxMonths;
+
+            openModal('modal-edit-part');
+        }
+
+        function updateMasterPart(e) {
+            e.preventDefault();
+            const key = document.getElementById('edit-part-key').value;
+            const name = document.getElementById('edit-part-name').value;
+            const maxKm = parseInt(document.getElementById('edit-part-max-km').value) || 3000;
+            const maxMonths = parseInt(document.getElementById('edit-part-max-months').value) || 6;
+
+            const v = appData.vehicles[appData.activeVehicle];
+            if (v && v.parts && v.parts[key]) {
+                v.parts[key].name = name;
+                v.parts[key].maxKm = maxKm;
+                v.parts[key].maxMonths = maxMonths;
+                saveData();
+                closeModal('modal-edit-part');
+                showToast('Master interval sparepart berhasil diperbarui!');
+            }
+        }
+
+        function deletePartComponent() {
+            const key = document.getElementById('edit-part-key').value;
+            const v = appData.vehicles[appData.activeVehicle];
+            if (v && v.parts && v.parts[key]) {
+                if (confirm(`Hapus komponen master ${v.parts[key].name}?`)) {
+                    delete v.parts[key];
+                    saveData();
+                    closeModal('modal-edit-part');
+                    showToast('Komponen berhasil dihapus!');
+                }
+            }
+        }
+
+        // Component Health Dual Threshold Algorithm
+        function calculatePartHealth(part, currentOdo) {
+            const today = new Date();
+            const lastDate = part.lastDate ? new Date(part.lastDate) : new Date();
+
+            const usedKm = currentOdo - part.lastKm;
+            const kmPct = Math.round((usedKm / part.maxKm) * 100);
+
+            const monthDiff = (today.getFullYear() - lastDate.getFullYear()) * 12 + (today.getMonth() - lastDate.getMonth());
+            const monthPct = Math.round((monthDiff / part.maxMonths) * 100);
+
+            const dominantPct = Math.min(Math.max(kmPct, monthPct), 100);
+
+            return {
+                usedKm,
+                monthDiff,
+                kmPct,
+                monthPct,
+                dominantPct,
+                isKmLimit: kmPct >= monthPct
+            };
+        }
+
+        // Closable Notification System
+        function closeNotificationBanner() {
+            notificationDismissed = true;
+            document.getElementById('notificationBanner').classList.add('hidden');
+        }
+
+        function checkNotificationsAndReminders() {
+            if (notificationDismissed) return;
+
+            const v = appData.vehicles[appData.activeVehicle];
+            const today = new Date();
+            let alerts = [];
+
+            // 1. Check Component Limits
+            if (v && v.parts) {
+                Object.keys(v.parts).forEach(k => {
+                    const part = v.parts[k];
+                    const health = calculatePartHealth(part, v.odometer);
+                    if (health.dominantPct >= 100) {
+                        alerts.push(`Komponen <b>${part.name}</b> telah mencapai batas usia/KM. Segera servis!`);
+                    }
+                });
+            }
+
+            // 2. Check Tax Reminders (7 days before)
+            if (v && v.taxDates) {
+                const taxDays = Math.ceil((new Date(v.taxDates.annual) - today) / (1000 * 60 * 60 * 24));
+                if (taxDays <= 7 && taxDays >= 0) {
+                    alerts.push(`Pajak Tahunan jatuh tempo dalam <b>${taxDays} hari</b> (${formatDateIndo(v.taxDates.annual)}). Segera bayar!`);
+                } else if (taxDays < 0) {
+                    alerts.push(`Pajak Tahunan sudah <b>lewat jatuh tempo</b>! Segera lakukan pembayaran.`);
+                }
+
+                const stnkDays = Math.ceil((new Date(v.taxDates.fiveYear) - today) / (1000 * 60 * 60 * 24));
+                if (stnkDays <= 7 && stnkDays >= 0) {
+                    alerts.push(`Ganti Plat 5 Tahunan jatuh tempo dalam <b>${stnkDays} hari</b>.`);
+                }
+            }
+
+            // 3. Check SIM Reminders (7 days before)
+            const simExpDate = appData.simData ? appData.simData.expiryDate : appData.simDate;
+            if (simExpDate) {
+                const simDays = Math.ceil((new Date(simExpDate) - today) / (1000 * 60 * 60 * 24));
+                const simType = appData.simData?.type ? `SIM ${appData.simData.type}` : 'SIM';
+                if (simDays <= 7 && simDays >= 0) {
+                    alerts.push(`Masa berlaku <b>${simType}</b> habis dalam <b>${simDays} hari</b> (${formatDateIndo(simExpDate)}). Segera perpanjang!`);
+                } else if (simDays < 0) {
+                    alerts.push(`Masa berlaku <b>${simType}</b> <b>sudah kedaluwarsa</b>! Segera perbarui SIM Anda.`);
+                }
+            }
+
+            const banner = document.getElementById('notificationBanner');
+            const list = document.getElementById('notificationList');
+            const badge = document.getElementById('notifCountBadge');
+
+            if (alerts.length > 0) {
+                banner.classList.remove('hidden');
+                badge.innerText = alerts.length;
+                list.innerHTML = alerts.map(a => `<div class="flex items-start gap-1.5"><i class="fas fa-exclamation-circle text-red-400 mt-0.5"></i><span>${a}</span></div>`).join('');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        function renderPartsStatus() {
+            const v = appData.vehicles[appData.activeVehicle];
+            const partsContainer = document.getElementById('partsContainer');
+            const urgentPartsList = document.getElementById('urgentPartsList');
+            partsContainer.innerHTML = '';
+            urgentPartsList.innerHTML = '';
+
+            if (!v || !v.parts) return;
+
+            Object.keys(v.parts).forEach(key => {
+                const part = v.parts[key];
+                const health = calculatePartHealth(part, v.odometer);
+
+                let badgeClass = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                let statusText = "Bagus";
+                let barColor = "bg-emerald-500";
+
+                if (health.dominantPct >= 100) {
+                    badgeClass = "bg-red-500/10 text-red-400 border-red-500/20 animate-pulse";
+                    statusText = health.isKmLimit ? "Batas KM Habis" : "Batas Usia Habis";
+                    barColor = "bg-red-500";
+                } else if (health.dominantPct >= 80) {
+                    badgeClass = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                    statusText = "Segera Cek";
+                    barColor = "bg-amber-500";
+                }
+
+                // Render Full Parts Component Card with Edit Button
+                const cardHtml = `
+                    <div id="part-card-${key}" class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl space-y-2 shadow-sm cursor-pointer select-none" 
+                         onmousedown="startPartHold('${key}')" onmouseup="endPartHold()" onmouseleave="endPartHold()"
+                         ontouchstart="startPartHold('${key}')" ontouchend="endPartHold()">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 text-sm">
+                                    <i class="fas ${part.icon}"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                                        ${part.name}
+                                        <button onclick="event.stopPropagation(); openEditMasterPartModal('${key}')" title="Edit Interval Master" class="text-[10px] text-amber-400 hover:text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                            <i class="fas fa-edit"></i> Edit Master
+                                        </button>
+                                    </h4>
+                                    <p class="text-[10px] text-slate-400">Pemakaian: ${health.usedKm.toLocaleString('id-ID')} / ${part.maxKm.toLocaleString('id-ID')} KM (${health.monthDiff}/${part.maxMonths} Bln)</p>
+                                </div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">${statusText}</span>
+                        </div>
+                        <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                            <div class="${barColor} h-full transition-all duration-500" style="width: ${health.dominantPct}%"></div>
+                        </div>
+                    </div>
+                `;
+                partsContainer.insertAdjacentHTML('beforeend', cardHtml);
+
+                if (health.dominantPct >= 80) {
+                    const urgentHtml = `
+                        <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs border border-amber-500/20">
+                                    <i class="fas ${part.icon}"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-200 text-xs">${part.name}</p>
+                                    <p class="text-[10px] text-slate-400">${health.isKmLimit ? `${health.usedKm} /${part.maxKm} KM` : `${health.monthDiff} dari max ${part.maxMonths} Bulan`}</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-bold border ${badgeClass}">${statusText}</span>
+                        </div>
+                    `;
+                    urgentPartsList.insertAdjacentHTML('beforeend', urgentHtml);
+                }
+            });
+
+            if (urgentPartsList.children.length === 0) {
+                urgentPartsList.innerHTML = `<div class="p-3 text-center text-xs text-slate-500 bg-slate-900 rounded-xl border border-slate-800">Semua komponen dalam kondisi prima.</div>`;
+            }
+        }
+
+        // Long Press Handler for Part Cards
+        let partHoldTimer = null;
+        function startPartHold(partKey) {
+            endPartHold();
+            const card = document.getElementById(`part-card-${partKey}`);
+            if (card) card.classList.add('press-hold-active');
+
+            partHoldTimer = setTimeout(() => {
+                endPartHold();
+                openServiceModal(partKey);
+            }, 600);
+        }
+
+        function endPartHold() {
+            if (partHoldTimer) clearTimeout(partHoldTimer);
+            document.querySelectorAll('.press-hold-active').forEach(e => e.classList.remove('press-hold-active'));
+        }
+
+        // Long Press Handler for Log Items
+        let logHoldTimer = null;
+        function startLogHold(logId) {
+            endLogHold();
+            logHoldTimer = setTimeout(() => {
+                endLogHold();
+                openLogActionModal(logId);
+            }, 600);
+        }
+
+        function endLogHold() {
+            if (logHoldTimer) clearTimeout(logHoldTimer);
+        }
+
+        function openLogActionModal(logId) {
+            const v = appData.vehicles[appData.activeVehicle];
+            const log = v.logs.find(l => l.id === logId);
+            if (!log) return;
+
+            document.getElementById('log-action-title').innerText = log.title;
+            document.getElementById('log-action-details').innerHTML = `
+                <div class="flex justify-between"><span>Kategori:</span><span class="font-semibold text-slate-100">${log.category}</span></div>
+                <div class="flex justify-between"><span>Biaya:</span><span class="font-semibold text-emerald-400">Rp ${log.cost.toLocaleString('id-ID')}</span></div>
+                <div class="flex justify-between"><span>Tanggal:</span><span class="font-semibold text-slate-100">${log.date}</span></div>
+                ${log.km ? `<div class="flex justify-between"><span>Odometer:</span><span class="font-semibold text-slate-100">${log.km.toLocaleString('id-ID')} KM</span></div>` : ''}
+                ${log.notes ? `<div class="pt-1 border-t border-slate-800 text-[11px] text-slate-400">Notes: ${log.notes}</div>` : ''}
+            `;
+
+            const receiptBtn = document.getElementById('log-view-receipt-btn');
+            if (log.receipt) {
+                receiptBtn.classList.remove('hidden');
+                receiptBtn.onclick = () => { closeModal('modal-log-action'); viewImageModal(log.receipt, log.title); };
+            } else {
+                receiptBtn.classList.add('hidden');
+            }
+
+            document.getElementById('log-delete-btn').onclick = () => deleteLogEntry(logId);
+            openModal('modal-log-action');
+        }
+
+        function deleteLogEntry(logId) {
+            const v = appData.vehicles[appData.activeVehicle];
+            v.logs = v.logs.filter(l => l.id !== logId);
+            saveData();
+            closeModal('modal-log-action');
+            showToast('Catatan log berhasil dihapus!');
+        }
+
+        function renderRecentLogs() {
+            const container = document.getElementById('recent-logs-list');
+            const v = appData.vehicles[appData.activeVehicle];
+            if (!v.logs || v.logs.length === 0) {
+                container.innerHTML = `<div class="p-4 text-center text-xs text-slate-500">Belum ada transaksi pengeluaran.</div>`;
+                return;
+            }
+
+            const recent = [...v.logs].reverse().slice(0, 3);
+            container.innerHTML = recent.map(log => `
+                <div class="p-3 flex items-center justify-between hover:bg-slate-800/50 transition">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center text-sm">
+                            ${getCategoryIcon(log.category)}
+                        </div>
+                        <div>
+                            <div class="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+                                ${log.title}
+                                ${log.receipt ? `<button onclick="viewImageModal('${log.receipt}', '${log.title}')" class="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><i class="fas fa-receipt"></i> Struk</button>` : ''}
+                            </div>
+                            <div class="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                <span>${log.date}</span>
+                                ${log.km ? `<span>• ${log.km.toLocaleString('id-ID')} KM</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="font-bold text-xs text-slate-200">Rp ${log.cost.toLocaleString('id-ID')}</span>
+                        <span class="block text-[9px] text-slate-400">${log.category}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderFullLogs() {
+            const container = document.getElementById('full-logs-container');
+            const v = appData.vehicles[appData.activeVehicle];
+
+            if (!v.logs || v.logs.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-xs text-slate-500">Belum ada catatan log.</div>`;
+                return;
+            }
+
+            const sorted = [...v.logs].reverse();
+            container.innerHTML = sorted.map(log => `
+                <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm flex items-start justify-between gap-3 text-xs cursor-pointer select-none"
+                     onmousedown="startLogHold(${log.id})" onmouseup="endLogHold()" onmouseleave="endLogHold()"
+                     ontouchstart="startLogHold(${log.id})" ontouchend="endLogHold()">
+                    <div class="flex items-start gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-sm shrink-0">
+                            ${getCategoryIcon(log.category)}
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-200">${log.title}</h4>
+                            <div class="text-[11px] text-slate-400 mt-0.5">${log.notes || 'Tanpa catatan tambahan'}</div>
+                            <div class="flex items-center gap-3 mt-1.5 text-[10px] text-slate-500">
+                                <span><i class="far fa-calendar-alt"></i> ${log.date}</span>
+                                ${log.km ? `<span><i class="fas fa-tachometer-alt"></i> ${log.km.toLocaleString('id-ID')} KM</span>` : ''}
+                            </div>
+                            ${log.receipt ? `
+                                <button onclick="event.stopPropagation(); viewImageModal('${log.receipt}', '${log.title}')" class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] font-semibold rounded-lg border border-amber-500/20 hover:bg-amber-500/20">
+                                    <i class="fas fa-image"></i> Lihat Struk Foto
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <span class="font-bold text-sm text-slate-100 block">Rp ${log.cost.toLocaleString('id-ID')}</span>
+                        <span class="inline-block mt-1 text-[9px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded-full border border-slate-800">${log.category}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Export and Import JSON Data Logic
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `autolog_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('Data berhasil diekspor ke JSON!');
+        }
+
+        function importDataJSON(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const parsed = JSON.parse(event.target.result);
+                    if (parsed && parsed.vehicles) {
+                        appData = parsed;
+                        saveData();
+                        showToast('Data JSON berhasil dipulihkan!');
+                    } else {
+                        alert('Format file JSON tidak valid untuk aplikasi ini.');
+                    }
+                } catch (err) {
+                    alert('Gagal membaca file JSON.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Helpers & UI Triggers
+        function openServiceModal(preselectPartKey) {
+            const v = appData.vehicles[appData.activeVehicle];
+            document.getElementById('serviceDateInput').value = new Date().toISOString().split('T')[0];
+            document.getElementById('serviceOdoInput').value = v.odometer;
+
+            if (preselectPartKey) {
+                document.getElementById('servicePartSelect').value = preselectPartKey;
+            }
+
+            document.getElementById('serviceModal').classList.remove('hidden');
+            document.getElementById('serviceModal').classList.add('flex');
+        }
+
+        function closeServiceModal() {
+            document.getElementById('serviceModal').classList.add('hidden');
+            document.getElementById('serviceModal').classList.remove('flex');
+        }
+
+        function saveServiceLog() {
+            const partKey = document.getElementById('servicePartSelect').value;
+            const date = document.getElementById('serviceDateInput').value;
+            const odo = parseInt(document.getElementById('serviceOdoInput').value);
+            const cost = parseInt(document.getElementById('serviceCostInput').value) || 0;
+
+            const v = appData.vehicles[appData.activeVehicle];
+            if (v.parts && v.parts[partKey]) {
+                v.parts[partKey].lastKm = odo;
+                v.parts[partKey].lastDate = date;
+            }
+
+            v.logs.push({
+                id: Date.now(),
+                category: 'Servis',
+                title: `Servis Ganti ${v.parts[partKey]?.name || 'Komponen'}`,
+                cost,
+                km: odo,
+                date,
+                notes: 'Penggantian Part & Servis',
+                receipt: ''
+            });
+
+            if (odo > v.odometer) v.odometer = odo;
+
+            saveData();
+            closeServiceModal();
+            showToast('Counter part direset & diservis!');
+        }
+
+        // Tax & SIM Reminders Calculation
+        function renderTaxReminders() {
+            const v = appData.vehicles[appData.activeVehicle];
+            const today = new Date();
+
+            if (v.taxDates) {
+                const taxDate = new Date(v.taxDates.annual);
+                const taxDays = Math.ceil((taxDate - today) / (1000 * 60 * 60 * 24));
+                document.getElementById('taxDateDisplay').innerText = formatDateIndo(v.taxDates.annual);
+                document.getElementById('taxBadge').innerText = `${taxDays} Hari`;
+
+                const stnkDate = new Date(v.taxDates.fiveYear);
+                const stnkDays = Math.ceil((stnkDate - today) / (1000 * 60 * 60 * 24));
+                document.getElementById('stnkDateDisplay').innerText = formatDateIndo(v.taxDates.fiveYear);
+                document.getElementById('stnkBadge').innerText = `${stnkDays} Hari`;
+            }
+
+            // SIM Expiry Card Rendering
+            const simExp = appData.simData?.expiryDate || appData.simDate;
+            const simType = appData.simData?.type || 'C';
+            const simNum = appData.simData?.number || '----';
+
+            if (simExp) {
+                const simDateObj = new Date(simExp);
+                const simDays = Math.ceil((simDateObj - today) / (1000 * 60 * 60 * 24));
+                document.getElementById('simDateDisplay').innerText = formatDateIndo(simExp);
+                document.getElementById('simTypeDisplay').innerText = simType;
+                
+                const simBadge = document.getElementById('simBadge');
+                simBadge.innerText = `${simDays} Hari`;
+                if (simDays < 0) {
+                    simBadge.className = "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/10 text-red-400 border border-red-500/20";
+                    simBadge.innerText = "Kedaluwarsa";
+                } else if (simDays <= 30) {
+                    simBadge.className = "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20";
+                } else {
+                    simBadge.className = "inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20";
+                }
+
+                document.getElementById('garasiSimNumber').innerText = `SIM ${simType} - ${simNum}`;
+                document.getElementById('garasiSimStatus').innerText = simDays < 0 ? "Kedaluwarsa" : `${simDays} Hari Lagi`;
+            }
+        }
+
+        // Feature 2: SIM Expiration & Profile Modal Triggers
+        function openSimModal() {
+            if (!appData.simData) {
+                appData.simData = { type: 'C', number: '', issueDate: '', expiryDate: appData.simDate || '' };
+            }
+            document.getElementById('simTypeInput').value = appData.simData.type || 'C';
+            document.getElementById('simNumberInput').value = appData.simData.number || '';
+            document.getElementById('simIssueDateInput').value = appData.simData.issueDate || '';
+            document.getElementById('simDateInput').value = appData.simData.expiryDate || appData.simDate || new Date().toISOString().split('T')[0];
+
+            document.getElementById('simModal').classList.remove('hidden');
+            document.getElementById('simModal').classList.add('flex');
+        }
+
+        function closeSimModal() {
+            document.getElementById('simModal').classList.add('hidden');
+            document.getElementById('simModal').classList.remove('flex');
+        }
+
+        function saveSimDate() {
+            const type = document.getElementById('simTypeInput').value;
+            const number = document.getElementById('simNumberInput').value;
+            const issueDate = document.getElementById('simIssueDateInput').value;
+            const expiryDate = document.getElementById('simDateInput').value;
+
+            if (expiryDate) {
+                appData.simData = { type, number, issueDate, expiryDate };
+                appData.simDate = expiryDate; // sync backward compatibility
+                saveData();
+                closeSimModal();
+                showToast('Masa berlaku SIM berhasil disimpan!');
+            }
+        }
+
+        // Receipt Upload Handlers
+        function toggleReceiptUploadField() {
+            const cat = document.getElementById('log-category').value;
+            const uploadBox = document.getElementById('receipt-upload-container');
+            if (cat === 'BBM' || cat === 'ParkirTol') {
+                uploadBox.classList.remove('hidden');
+            } else {
+                uploadBox.classList.add('hidden');
+                clearReceiptPhoto();
+            }
+        }
+
+        function handleReceiptSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 800;
+
+                    if (width > height && width > maxDim) {
+                        height *= maxDim / width;
+                        width = maxDim;
+                    } else if (height > maxDim) {
+                        width *= maxDim / height;
+                        height = maxDim;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    currentReceiptData = canvas.toDataURL('image/jpeg', 0.7);
+
+                    document.getElementById('receipt-preview-img').src = currentReceiptData;
+                    document.getElementById('receipt-preview-box').classList.remove('hidden');
+                    document.getElementById('receipt-upload-placeholder').classList.add('hidden');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeReceiptPhoto(e) {
+            if (e) e.stopPropagation();
+            clearReceiptPhoto();
+        }
+
+        function clearReceiptPhoto() {
+            currentReceiptData = '';
+            document.getElementById('log-receipt-input').value = '';
+            document.getElementById('receipt-preview-img').src = '';
+            document.getElementById('receipt-preview-box').classList.add('hidden');
+            document.getElementById('receipt-upload-placeholder').classList.remove('hidden');
+        }
+
+        function saveGeneralLog(e) {
+            e.preventDefault();
+            const category = document.getElementById('log-category').value;
+            const title = document.getElementById('log-title').value;
+            const cost = parseInt(document.getElementById('log-cost').value) || 0;
+            const km = parseInt(document.getElementById('log-km').value) || null;
+            const notes = document.getElementById('log-notes').value;
+
+            const v = appData.vehicles[appData.activeVehicle];
+            const newLog = {
+                id: Date.now(),
+                category,
+                title,
+                cost,
+                km,
+                date: new Date().toISOString().split('T')[0],
+                notes,
+                receipt: (category === 'BBM' || category === 'ParkirTol') ? currentReceiptData : ''
+            };
+
+            v.logs.push(newLog);
+            if (km && km > v.odometer) v.odometer = km;
+
+            saveData();
+            closeModal('modal-log');
+            document.getElementById('form-log').reset();
+            clearReceiptPhoto();
+            showToast('Transaksi berhasil disimpan!');
+        }
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function openOdoModal() {
+            const v = appData.vehicles[appData.activeVehicle];
+            document.getElementById('odoInput').value = v.odometer;
+            document.getElementById('odoModal').classList.remove('hidden');
+            document.getElementById('odoModal').classList.add('flex');
+        }
+
+        function closeOdoModal() {
+            document.getElementById('odoModal').classList.add('hidden');
+            document.getElementById('odoModal').classList.remove('flex');
+        }
+
+        function saveOdometer() {
+            const val = parseInt(document.getElementById('odoInput').value);
+            if (val) {
+                appData.vehicles[appData.activeVehicle].odometer = val;
+                saveData();
+                closeOdoModal();
+                showToast('Odometer KM berhasil diperbarui!');
+            }
+        }
+
+        function openBbmModal() {
+            const v = appData.vehicles[appData.activeVehicle];
+            document.getElementById('bbmDateInput').value = new Date().toISOString().split('T')[0];
+            document.getElementById('bbmOdoInput').value = v.odometer;
+            document.getElementById('bbmModal').classList.remove('hidden');
+            document.getElementById('bbmModal').classList.add('flex');
+        }
+
+        function closeBbmModal() {
+            document.getElementById('bbmModal').classList.add('hidden');
+            document.getElementById('bbmModal').classList.remove('flex');
+        }
+
+        function saveBbmLog() {
+            const date = document.getElementById('bbmDateInput').value;
+            const odo = parseInt(document.getElementById('bbmOdoInput').value) || appData.vehicles[appData.activeVehicle].odometer;
+            const liter = parseFloat(document.getElementById('bbmLiterInput').value);
+            const cost = parseInt(document.getElementById('bbmCostInput').value);
+
+            if (!date || !liter || !cost) {
+                showToast('Harap isi data BBM dengan lengkap');
+                return;
+            }
+
+            const v = appData.vehicles[appData.activeVehicle];
+            v.bbmLogs.unshift({ id: Date.now(), date, odo, liter, cost });
+            v.logs.push({
+                id: Date.now(),
+                category: 'BBM',
+                title: `Isi BBM ${liter}L`,
+                cost,
+                km: odo,
+                date,
+                notes: 'Pengisian Bahan Bakar',
+                receipt: ''
+            });
+
+            if (odo > v.odometer) v.odometer = odo;
+
+            saveData();
+            closeBbmModal();
+            showToast('Log pengisian BBM disimpan!');
+        }
+
+        function openTaxModal() {
+            const v = appData.vehicles[appData.activeVehicle];
+            if (v.taxDates) {
+                document.getElementById('taxDateInput').value = v.taxDates.annual;
+                document.getElementById('stnkDateInput').value = v.taxDates.fiveYear;
+            }
+            document.getElementById('taxModal').classList.remove('hidden');
+            document.getElementById('taxModal').classList.add('flex');
+        }
+
+        function closeTaxModal() {
+            document.getElementById('taxModal').classList.add('hidden');
+            document.getElementById('taxModal').classList.remove('flex');
+        }
+
+        function saveTaxDates() {
+            const annual = document.getElementById('taxDateInput').value;
+            const fiveYear = document.getElementById('stnkDateInput').value;
+
+            const v = appData.vehicles[appData.activeVehicle];
+            v.taxDates = { annual, fiveYear };
+
+            saveData();
+            closeTaxModal();
+            showToast('Tanggal Pajak & STNK disimpan!');
+        }
+
+        function openThemePicker() {
+            const grid = document.getElementById('color-palette-grid');
+            const v = appData.vehicles[appData.activeVehicle];
+
+            grid.innerHTML = Object.keys(COLOR_THEMES).map(key => {
+                const theme = COLOR_THEMES[key];
+                const isSelected = v.color === key;
+                return `
+                    <button onclick="selectTheme('${key}')" class="flex flex-col items-center gap-1 p-2 rounded-2xl border ${isSelected ? 'border-amber-500 ring-2 ring-amber-500/30' : 'border-slate-800'} hover:scale-105 transition btn-touch">
+                        <div class="w-8 h-8 rounded-xl bg-gradient-to-br ${theme.gradient} shadow-md flex items-center justify-center text-white text-sm">
+                            <i class="fas ${v.icon}"></i>
+                        </div>
+                        <span class="text-[10px] font-semibold text-slate-300">${theme.name}</span>
+                    </button>
+                `;
+            }).join('');
+
+            openModal('modal-theme');
+        }
+
+        function selectTheme(themeKey) {
+            const v = appData.vehicles[appData.activeVehicle];
+            v.color = themeKey;
+            saveData();
+            closeModal('modal-theme');
+            showToast('Tema warna kendaraan diubah!');
+        }
+
+        function viewImageModal(imgUrl, title) {
+            document.getElementById('modal-view-img').src = imgUrl;
+            document.getElementById('modal-view-title').innerText = title || 'Struk Bukti Foto';
+            openModal('modal-image-view');
+        }
+
+        function closeImageViewModal() {
+            closeModal('modal-image-view');
+        }
+
+        function toggleDarkMode() {
+            appData.darkMode = !appData.darkMode;
+            document.documentElement.classList.toggle('dark', appData.darkMode);
+            document.getElementById('dark-mode-icon').className = appData.darkMode ? 'fas fa-sun' : 'fas fa-moon';
+            saveData();
+        }
+
+        function saveBikeProfile() {
+            const v = appData.vehicles[appData.activeVehicle];
+            v.name = document.getElementById('inputBikeName').value;
+            v.plate = document.getElementById('inputBikePlate').value;
+            saveData();
+            showToast('Profil kendaraan diperbarui!');
+        }
+
+        function resetData() {
+            if (confirm('PERINGATAN: Seluruh data kendaraan dan log transaksi akan dihapus permanen! Yakin?')) {
+                localStorage.removeItem('mogtor_pro_unified_data');
+                location.reload();
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+
+        function formatDateIndo(dateStr) {
+            if (!dateStr) return '-- --- ----';
+            const d = new Date(dateStr);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        function getCategoryIcon(cat) {
+            switch(cat) {
+                case 'BBM': return '<i class="fas fa-gas-pump text-amber-400"></i>';
+                case 'ParkirTol': return '<i class="fas fa-parking text-blue-400"></i>';
+                case 'Servis': return '<i class="fas fa-wrench text-emerald-400"></i>';
+                case 'Pajak': return '<i class="fas fa-file-invoice-dollar text-purple-400"></i>';
+                default: return '<i class="fas fa-wallet text-slate-400"></i>';
+            }
+        }
+
+        // Render Analytics Charts
+        function renderAnalytics() {
+            const v = appData.vehicles[appData.activeVehicle];
+            if (!v) return;
+
+            document.getElementById('analyticTotalKm').innerText = `${v.odometer.toLocaleString('id-ID')} KM`;
+
+            // Calculate Monthly Average
+            const totalExpense = v.logs.reduce((acc, curr) => acc + (curr.cost || 0), 0);
+            document.getElementById('analyticMonthlyAvg').innerText = `Rp ${(totalExpense / 3).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
+
+            // BBM Efficiency Stats
+            let totalLiter = 0;
+            let totalBbmCost = 0;
+            v.bbmLogs.forEach(b => { totalLiter += b.liter; totalBbmCost += b.cost; });
+
+            document.getElementById('totalFuelLiter').innerText = `${totalLiter.toFixed(1)} Liter`;
+
+            const costPerKm = v.odometer > 0 ? (totalExpense / v.odometer).toFixed(0) : 0;
+            document.getElementById('costPerKmDisplay').innerText = `Rp ${costPerKm} / KM`;
+
+            const avgFuelEfficiency = totalLiter > 0 ? (v.odometer / totalLiter).toFixed(1) : '38.5';
+            document.getElementById('analyticsAvgFuel').innerText = `${avgFuelEfficiency} KM/L`;
+
+            // 1. Fuel Trend Chart
+            const ctxFuel = document.getElementById('fuelChart').getContext('2d');
+            if (fuelChartInstance) fuelChartInstance.destroy();
+
+            const bbmLabels = v.bbmLogs.slice(0, 6).reverse().map(b => b.date.slice(5));
+            const bbmData = v.bbmLogs.slice(0, 6).reverse().map(b => b.liter);
+
+            fuelChartInstance = new Chart(ctxFuel, {
+                type: 'line',
+                data: {
+                    labels: bbmLabels.length ? bbmLabels : ['Okt 02', 'Okt 15'],
+                    datasets: [{
+                        label: 'Liter Terisi',
+                        data: bbmData.length ? bbmData : [4.0, 4.2],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { display: false }, x: { ticks: { color: '#94a3b8', font: { size: 9 } } } }
+                }
+            });
+
+            // 2. Expense Category Doughnut Chart
+            const ctxExpense = document.getElementById('expenseCategoryChart').getContext('2d');
+            if (expenseChartInstance) expenseChartInstance.destroy();
+
+            const catMap = { BBM: 0, ParkirTol: 0, Servis: 0, Pajak: 0, Lainnya: 0 };
+            v.logs.forEach(l => {
+                if (catMap[l.category] !== undefined) catMap[l.category] += l.cost;
+                else catMap.Lainnya += l.cost;
+            });
+
+            expenseChartInstance = new Chart(ctxExpense, {
+                type: 'doughnut',
+                data: {
+                    labels: ['BBM', 'Parkir/Tol', 'Servis', 'Pajak', 'Lainnya'],
+                    datasets: [{
+                        data: Object.values(catMap),
+                        backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#a855f7', '#64748b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 9 } } } }
+                }
+            });
+
+            // 3. Monthly Expense Bar Chart
+            const ctxMonthly = document.getElementById('monthlyTrendChart').getContext('2d');
+            if (monthlyChartInstance) monthlyChartInstance.destroy();
+
+            monthlyChartInstance = new Chart(ctxMonthly, {
+                type: 'bar',
+                data: {
+                    labels: ['Agt', 'Sep', 'Okt'],
+                    datasets: [{
+                        label: 'Pengeluaran (Rp)',
+                        data: [110000, 85000, 152000],
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { display: false }, x: { ticks: { color: '#94a3b8', font: { size: 9 } } } }
+                }
+            });
+        }
+
+        // Initialize App on Page Load
+        window.onload = function() {
+            renderApp();
+        };
+    </script>
+
+    <!-- ===== PWA: registrasi Service Worker (ditambahkan) ===== -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                // Path relatif: otomatis mengikuti subpath GitHub Pages (/nama-repo/)
+                navigator.serviceWorker
+                    .register('./sw.js', { scope: './', updateViaCache: 'none' })
+                    .catch(function (err) { console.warn('[MotorLog PWA] SW gagal didaftarkan:', err); });
+            });
+        }
+    </script>
+</body>
+</html>
