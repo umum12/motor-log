@@ -1979,6 +1979,81 @@
         };
     </script>
 
+    <!-- ===== PWA: banner "Pasang Aplikasi" (ditambahkan) ===== -->
+    <script>
+    (function () {
+        var KEY = 'motorlog_pro_pwa_install_dismissed_at'; // key khusus aplikasi ini
+        var WEEK = 7 * 24 * 60 * 60 * 1000;
+        var deferredPrompt = null;
+
+        function isStandalone() {
+            return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                   window.navigator.standalone === true;
+        }
+        function isIOS() {
+            return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+        }
+        function dismissedRecently() {
+            try { var t = parseInt(localStorage.getItem(KEY), 10); return !!t && (Date.now() - t) < WEEK; }
+            catch (e) { return false; }
+        }
+        function rememberDismiss() {
+            try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+        }
+        function hideBanner() {
+            var el = document.getElementById('pwa-install-banner');
+            if (el) el.remove();
+        }
+        function showBanner(iosMode) {
+            if (document.getElementById('pwa-install-banner')) return;
+            var host = document.getElementById('appContainer') || document.body;
+            var el = document.createElement('div');
+            el.id = 'pwa-install-banner';
+            el.className = 'absolute left-3 right-3 bottom-16 z-40 bg-slate-900 border border-amber-500/40 rounded-2xl p-3 shadow-2xl flex items-center gap-3 text-xs';
+            el.innerHTML =
+                '<div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center shrink-0">' +
+                    '<i class="fas fa-download"></i></div>' +
+                '<div class="flex-1 min-w-0">' +
+                    '<p class="font-bold text-slate-100">Pasang Aplikasi</p>' +
+                    '<p class="text-[10px] text-slate-400">' + (iosMode
+                        ? 'Ketuk tombol Bagikan, lalu pilih &quot;Tambah ke Layar Utama&quot;.'
+                        : 'Akses lebih cepat dari layar utama, tampil layar penuh.') + '</p>' +
+                '</div>' +
+                (iosMode ? '' : '<button id="pwa-install-btn" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl btn-touch shrink-0">Pasang</button>') +
+                '<button id="pwa-install-close" aria-label="Tutup" class="text-slate-400 hover:text-white text-lg font-bold leading-none shrink-0">&times;</button>';
+            host.appendChild(el);
+
+            document.getElementById('pwa-install-close').onclick = function () { rememberDismiss(); hideBanner(); };
+            var btn = document.getElementById('pwa-install-btn');
+            if (btn) btn.onclick = function () {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(function (choice) {
+                    if (choice && choice.outcome !== 'accepted') rememberDismiss();
+                    deferredPrompt = null;
+                    hideBanner();
+                }).catch(function () { hideBanner(); });
+            };
+        }
+
+        window.addEventListener('beforeinstallprompt', function (e) {
+            e.preventDefault();               // tahan prompt bawaan, tampilkan lewat banner sendiri
+            deferredPrompt = e;
+            if (!isStandalone() && !dismissedRecently()) showBanner(false);
+        });
+        window.addEventListener('appinstalled', function () {
+            deferredPrompt = null;
+            hideBanner();
+            if (typeof showToast === 'function') showToast('Aplikasi berhasil dipasang!');
+        });
+        // iOS Safari tidak punya beforeinstallprompt -> tampilkan petunjuk manual
+        window.addEventListener('load', function () {
+            if (isIOS() && !isStandalone() && !dismissedRecently()) showBanner(true);
+        });
+    })();
+    </script>
+    <!-- ===== /PWA banner ===== -->
+
     <!-- ===== PWA: registrasi Service Worker (ditambahkan) ===== -->
     <script>
         if ('serviceWorker' in navigator) {
