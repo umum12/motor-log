@@ -77,6 +77,144 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex justify-center items-center p-0 sm:p-4 transition-colors duration-300">
 
+    <!-- ===== Trial Gate (terpisah dari data Motor-Log: key localStorage '...:trial:*') ===== -->
+    <script>
+    (function () {
+        // --- Pengaturan ---
+        var TRIAL_MS = 60 * 1000;                 // trial gratis 60 detik
+        var COOLDOWN_MS = 12 * 60 * 60 * 1000;    // cooldown 12 jam sejak trial habis
+        // SHA-256 dari kode akses (huruf besar, tanpa spasi). Ganti dengan hash kode Anda sendiri.
+        var ACCESS_CODE_HASHES = ['74ece0eb7edb197b6c3021b46f43de905594347bacc0acd7d02fd6345207ea3b'];
+
+        var PREFIX = 'motorlog_pro:' + location.pathname.replace(/[^\/]*$/, '') + ':trial:';   // terikat path repo
+        var K_END = PREFIX + 'ends_at', K_SEEN = PREFIX + 'last_seen', K_UNLOCK = PREFIX + 'unlocked';
+        var mem = {};                              // cadangan bila localStorage diblokir
+        function get(k) { try { var v = localStorage.getItem(k); return v === null ? (mem[k] === undefined ? null : mem[k]) : v; } catch (e) { return mem[k] === undefined ? null : mem[k]; } }
+        function set(k, v) { mem[k] = String(v); try { localStorage.setItem(k, String(v)); } catch (e) {} }
+        function num(k) { var n = parseInt(get(k), 10); return isFinite(n) && n > 0 ? n : 0; }
+
+        if (get(K_UNLOCK) === '1') return;         // sudah dibuka dengan kode akses
+
+        // Waktu efektif tidak pernah mundur (menahan trik memundurkan jam perangkat)
+        function now() {
+            var t = Math.max(Date.now(), num(K_SEEN));
+            set(K_SEEN, t);
+            return t;
+        }
+        // Pertama kali dibuka: trial langsung berjalan
+        if (!num(K_END)) set(K_END, now() + TRIAL_MS);
+
+        var style = document.createElement('style');
+        style.textContent =
+            'body.tg-locked > *:not(#tg-root){visibility:hidden!important}' +
+            '#tg-root{font-family:inherit}' +
+            '#tg-count{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}' +
+            '#tg-count .n{font-size:min(46vw,46vh);font-weight:900;line-height:1;color:#f59e0b;opacity:.28;text-shadow:0 0 40px rgba(0,0,0,.5);font-variant-numeric:tabular-nums}' +
+            '#tg-count .n.low{color:#ef4444;opacity:.5}' +
+            '#tg-count .l{font-size:12px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#cbd5e1;opacity:.7;margin-top:4px}' +
+            '#tg-lock{position:fixed;inset:0;z-index:2147483600;background:#020617;color:#f1f5f9;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;overflow:auto}' +
+            '#tg-lock .big{font-size:min(17vw,96px);font-weight:900;line-height:1.05;color:#f59e0b;font-variant-numeric:tabular-nums;letter-spacing:.02em}' +
+            '#tg-lock .sub{font-size:12px;color:#94a3b8;margin:6px 0 22px}' +
+            '#tg-lock h1{font-size:18px;font-weight:800;margin:0 0 4px}' +
+            '#tg-lock form{width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px}' +
+            '#tg-lock input{width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid #334155;background:#0f172a;color:#f1f5f9;font-size:16px;text-align:center;letter-spacing:.12em;text-transform:uppercase}' +
+            '#tg-lock input:focus{outline:none;border-color:#f59e0b}' +
+            '#tg-lock button{padding:12px;border-radius:12px;border:0;background:#f59e0b;color:#020617;font-weight:800;font-size:14px;cursor:pointer}' +
+            '#tg-lock button:disabled{opacity:.5}' +
+            '#tg-lock .err{min-height:16px;font-size:12px;color:#f87171}';
+        document.head.appendChild(style);
+
+        var root = document.createElement('div');
+        root.id = 'tg-root';
+        root.innerHTML =
+            '<div id="tg-count" aria-live="off"><div class="n" id="tg-n">60</div><div class="l">Trial gratis</div></div>' +
+            '<div id="tg-lock" role="dialog" aria-modal="true" aria-label="Aplikasi terkunci">' +
+              '<h1>Masa trial habis</h1>' +
+              '<div class="sub" id="tg-sub">Masukkan kode akses untuk membuka aplikasi.</div>' +
+              '<form id="tg-form" autocomplete="off"><input id="tg-code" type="text" placeholder="KODE AKSES" autocapitalize="characters" spellcheck="false" aria-label="Kode akses"><div class="err" id="tg-err" role="alert"></div><button type="submit" id="tg-btn">Buka Aplikasi</button></form>' +
+              '<div style="margin-top:28px"><div class="sub" style="margin:0 0 4px" id="tg-cd-label">Trial 60 detik tersedia lagi dalam</div><div class="big" id="tg-cd">12:00:00</div>' +
+              '<button type="button" id="tg-again" style="display:none;margin-top:14px;padding:12px 22px">Mulai Trial 60 Detik</button></div>' +
+            '</div>';
+        document.body.appendChild(root);
+
+        var $ = function (id) { return document.getElementById(id); };
+        var timer = null, unlocked = false;
+        function pad(n) { return (n < 10 ? '0' : '') + n; }
+        function hms(ms) {
+            var s = Math.max(0, Math.ceil(ms / 1000));
+            return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60);
+        }
+        function tick() {
+            if (unlocked) return;
+            var t = now(), end = num(K_END);
+            if (t < end) {                                   // trial berjalan
+                document.body.classList.remove('tg-locked');
+                $('tg-lock').style.display = 'none';
+                $('tg-count').style.display = 'flex';
+                var left = Math.ceil((end - t) / 1000);
+                $('tg-n').textContent = left;
+                $('tg-n').className = 'n' + (left <= 10 ? ' low' : '');
+                return;
+            }
+            // terkunci
+            var wasLocked = document.body.classList.contains('tg-locked');
+            document.body.classList.add('tg-locked');
+            $('tg-count').style.display = 'none';
+            $('tg-lock').style.display = 'flex';
+            var cd = end + COOLDOWN_MS - t;
+            if (cd > 0) {
+                $('tg-cd').textContent = hms(cd);
+                $('tg-cd-label').textContent = 'Trial 60 detik tersedia lagi dalam';
+                $('tg-cd').style.display = '';
+                $('tg-again').style.display = 'none';
+            } else {
+                $('tg-cd').style.display = 'none';
+                $('tg-cd-label').textContent = 'Trial 60 detik sudah tersedia kembali';
+                $('tg-again').style.display = '';
+            }
+            if (!wasLocked && document.activeElement && document.activeElement !== document.body) { try { document.activeElement.blur(); } catch (e) {} }
+        }
+        function startTimer() { if (!timer) timer = setInterval(tick, 250); }
+
+        $('tg-again').onclick = function () {
+            if (now() < num(K_END) + COOLDOWN_MS) return;
+            set(K_END, now() + TRIAL_MS);
+            tick();
+        };
+        function sha256Hex(text) {
+            if (!(window.crypto && crypto.subtle)) return Promise.reject(new Error('nocrypto'));
+            return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (buf) {
+                return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+            });
+        }
+        $('tg-form').onsubmit = function (ev) {
+            ev.preventDefault();
+            var code = $('tg-code').value.replace(/\s+/g, '').toUpperCase();
+            var err = $('tg-err');
+            if (!code) { err.textContent = 'Masukkan kode akses.'; return; }
+            $('tg-btn').disabled = true;
+            sha256Hex(code).then(function (h) {
+                if (ACCESS_CODE_HASHES.indexOf(h) !== -1) {
+                    set(K_UNLOCK, '1');
+                    unlocked = true;
+                    clearInterval(timer);
+                    document.body.classList.remove('tg-locked');
+                    root.parentNode && root.parentNode.removeChild(root);
+                } else {
+                    err.textContent = 'Kode akses salah.';
+                    $('tg-code').select();
+                }
+            }).catch(function () {
+                err.textContent = 'Peramban tidak mendukung verifikasi kode (butuh HTTPS).';
+            }).then(function () { var bt = $('tg-btn'); if (bt) bt.disabled = false; });
+        };
+        document.addEventListener('visibilitychange', tick);
+        window.addEventListener('pageshow', tick);
+        tick();
+        startTimer();
+    })();
+    </script>
+
     <!-- Mobile Device Container Frame -->
     <div id="appContainer" class="w-full max-w-md h-[100vh] sm:h-[850px] bg-slate-950 text-slate-100 sm:rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden border-0 sm:border-[8px] border-slate-800 transition-colors duration-300">
 
@@ -269,6 +407,11 @@
                 <div id="partsContainer" class="space-y-2.5">
                     <!-- Dynamic rendering by JS -->
                 </div>
+
+                <button onclick="addStandardParts()" class="w-full py-2.5 bg-slate-900 border border-dashed border-slate-700 text-slate-300 rounded-xl text-xs font-semibold btn-touch flex items-center justify-center gap-1.5">
+                    <i class="fas fa-list-check text-amber-400"></i> Tambah komponen standar yang belum ada
+                </button>
+                <p class="text-[10px] text-slate-500">Interval bersifat umum; sesuaikan lewat Edit Master. Komponen baru dihitung mulai hari ini, jadi catat servisnya jika sudah pernah diganti.</p>
             </div>
 
             <!-- TAB 3: LOGS & EXPENSES LIST -->
@@ -281,6 +424,39 @@
                     <button onclick="openNewLogModal()" class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1 btn-touch shrink-0">
                         <i class="fas fa-plus"></i> Catat Log
                     </button>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2">
+                    <div class="relative">
+                        <i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="search" id="log-filter-q" oninput="setLogFilter()" placeholder="Cari judul atau catatan..." class="w-full bg-slate-950 border border-slate-800 text-xs text-slate-200 rounded-xl py-2.5 pl-8 pr-3 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <select id="log-filter-cat" onchange="setLogFilter()" class="w-full bg-slate-950 border border-slate-800 text-xs text-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                            <option value="">Semua kategori</option>
+                            <option value="BBM">⛽ BBM</option>
+                            <option value="ParkirTol">🅿️ Parkir / Tol</option>
+                            <option value="Servis">🔧 Servis</option>
+                            <option value="Pajak">📄 Pajak</option>
+                            <option value="Lainnya">📦 Lain-lain</option>
+                        </select>
+                        <select id="log-filter-month" onchange="setLogFilter()" class="w-full bg-slate-950 border border-slate-800 text-xs text-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-amber-500">
+                            <option value="">Semua bulan</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <span id="log-filter-summary" class="text-[10px] text-slate-400"></span>
+                        <button onclick="resetLogFilter()" class="text-[10px] text-blue-400 font-medium shrink-0">Reset filter</button>
+                    </div>
+                    <div class="flex items-center gap-2 pt-1 border-t border-slate-800">
+                        <select id="csv-sep" title="Pemisah kolom CSV" class="flex-1 min-w-0 bg-slate-950 border border-slate-800 text-[10px] text-slate-300 rounded-lg px-2 py-1.5">
+                            <option value=";">Pemisah ; (Excel Indonesia)</option>
+                            <option value=",">Pemisah , (Sheets / Excel Inggris)</option>
+                        </select>
+                        <button onclick="exportLogsCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-[10px] btn-touch flex items-center gap-1 shrink-0">
+                            <i class="fas fa-file-csv"></i> Ekspor CSV
+                        </button>
+                    </div>
                 </div>
 
                 <div id="full-logs-container" class="space-y-2.5">
@@ -325,6 +501,27 @@
                     </div>
                 </div>
 
+                <!-- Fuel Price Card -->
+                <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm space-y-2.5">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-xs text-slate-300 uppercase tracking-wider">Harga BBM per Liter</h4>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20" id="fuelPriceLast">- /L</span>
+                    </div>
+                    <div class="h-32 w-full">
+                        <canvas id="fuelPriceChart"></canvas>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-center pt-2 border-t border-slate-800">
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 block">Rata-rata</span>
+                            <span class="text-xs font-bold text-amber-400" id="fuelPriceAvg">-</span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 block">Dibanding pengisian sebelumnya</span>
+                            <span class="text-xs font-bold text-slate-300" id="fuelPriceChange">-</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Expense Ratio Chart -->
                 <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm space-y-3">
                     <h4 class="font-bold text-xs text-slate-300 uppercase tracking-wider">Proporsi Biaya Pengeluaran</h4>
@@ -339,6 +536,13 @@
                     <div class="h-40 w-full">
                         <canvas id="monthlyTrendChart"></canvas>
                     </div>
+                </div>
+
+                <!-- Yearly Summary -->
+                <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm space-y-3">
+                    <h4 class="font-bold text-xs text-slate-300 uppercase tracking-wider">Ringkasan Biaya per Tahun</h4>
+                    <div id="yearlySummaryTotals"></div>
+                    <div id="yearlySummaryList" class="space-y-2"></div>
                 </div>
             </div>
 
@@ -511,6 +715,14 @@
                     <div>
                         <label class="block font-medium text-slate-400 mb-1">Odometer Awal (KM)</label>
                         <input type="number" id="new-v-km" placeholder="0" required class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Daftar Komponen Awal</label>
+                        <select id="new-v-parts" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl font-semibold text-slate-200 focus:outline-none focus:border-amber-500">
+                            <option value="standard">Daftar standar (bisa diedit nanti)</option>
+                            <option value="minimal">Hanya oli mesin</option>
+                        </select>
+                        <p class="text-[10px] text-slate-500 mt-1">Interval bersifat umum. Sesuaikan dengan buku manual kendaraan Anda.</p>
                     </div>
                     <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg transition btn-touch">Simpan Kendaraan Baru</button>
                 </form>
@@ -989,6 +1201,7 @@
         let fuelChartInstance = null;
         let expenseChartInstance = null;
         let monthlyChartInstance = null;
+        let fuelPriceChartInstance = null;
         let notificationDismissed = false;
 
         // ===== Foto struk: disimpan di IndexedDB (bukan localStorage) agar penyimpanan tidak cepat penuh =====
@@ -1323,6 +1536,8 @@
             toggleReceiptUploadField();
             checkNotificationsAndReminders();
             updateBackupInfo();
+            if (activeTab === 'logs') renderFullLogs();          // daftar riwayat ikut menyegarkan setelah edit/hapus/urungkan
+            if (activeTab === 'analytics') renderAnalytics();
         }
 
         function renderVehicleSwitcherTabs() {
@@ -1350,6 +1565,55 @@
             `).join('');
         }
 
+        // ===== Komponen standar (interval umum; pengguna menyesuaikan dengan buku manual) =====
+        const STANDARD_PARTS = {
+            motor: [
+                ['oli_mesin', 'Oli Mesin', 3000, 6, 'fa-oil-can'],
+                ['oli_gardan', 'Oli Gardan', 8000, 8, 'fa-gears'],
+                ['busi', 'Busi', 8000, 12, 'fa-bolt'],
+                ['filter_udara', 'Filter Udara', 10000, 6, 'fa-wind'],
+                ['kampas_rem', 'Kampas Rem', 10000, 12, 'fa-circle-dot'],
+                ['vbelt', 'V-Belt / Rantai', 20000, 24, 'fa-link']
+            ],
+            car: [
+                ['oli_mesin', 'Oli Mesin', 10000, 6, 'fa-oil-can'],
+                ['filter_oli', 'Filter Oli', 10000, 6, 'fa-filter'],
+                ['filter_udara', 'Filter Udara', 20000, 12, 'fa-wind'],
+                ['busi', 'Busi', 40000, 36, 'fa-bolt'],
+                ['kampas_rem', 'Kampas Rem', 30000, 36, 'fa-circle-dot'],
+                ['minyak_rem', 'Minyak Rem', 40000, 24, 'fa-droplet'],
+                ['air_radiator', 'Air Radiator (Coolant)', 40000, 24, 'fa-temperature-half'],
+                ['aki', 'Aki', 40000, 24, 'fa-car-battery']
+            ]
+        };
+        function buildStandardParts(type, odometer, minimalOnly) {
+            let list = STANDARD_PARTS[type] || STANDARD_PARTS.motor;
+            if (minimalOnly) list = list.slice(0, 1);
+            const parts = {};
+            list.forEach(function (d) {
+                parts[d[0]] = { name: d[1], lastKm: odometer, maxKm: d[2], lastDate: todayStr(), maxMonths: d[3], icon: d[4] };
+            });
+            return parts;
+        }
+        // Tambahkan komponen standar yang belum ada pada kendaraan aktif (dihitung mulai hari ini)
+        function addStandardParts() {
+            const v = appData.vehicles[appData.activeVehicle];
+            if (!v) return;
+            if (!v.parts) v.parts = {};
+            const snap = captureUndoSnapshot();
+            const names = new Set(Object.values(v.parts).map(p => String(p.name).trim().toLowerCase()));
+            const fresh = buildStandardParts(v.type, v.odometer, false);
+            let added = 0;
+            Object.keys(fresh).forEach(function (k) {
+                if (k in v.parts || names.has(fresh[k].name.toLowerCase())) return;
+                v.parts[k] = fresh[k];
+                added++;
+            });
+            if (!added) { showToast('Semua komponen standar sudah ada'); return; }
+            saveData();
+            offerUndo(added + ' komponen standar ditambahkan (dihitung mulai hari ini)', snap);
+        }
+
         // Add New Custom Vehicle
         function saveNewVehicle(e) {
             e.preventDefault();
@@ -1369,9 +1633,7 @@
                 color,
                 odometer: km,
                 taxDates: { annual: todayStr(), fiveYear: todayStr() },
-                parts: {
-                    oli_mesin: { name: "Oli Mesin", lastKm: km, maxKm: type === 'motor' ? 3000 : 10000, lastDate: todayStr(), maxMonths: 6, icon: "fa-oil-can" }
-                },
+                parts: buildStandardParts(type, km, document.getElementById('new-v-parts').value === 'minimal'),
                 bbmLogs: [],
                 logs: []
             };
@@ -1763,6 +2025,73 @@
             offerUndo('Catatan dihapus', snap);
         }
 
+        // ===== Cari / filter riwayat & ekspor CSV =====
+        const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+        const CATEGORY_LABELS = { BBM: 'BBM', ParkirTol: 'Parkir / Tol', Servis: 'Servis', Pajak: 'Pajak', Lainnya: 'Lain-lain' };
+        let logFilter = { q: '', cat: '', month: '' };
+
+        function filteredLogs(v) {
+            const q = logFilter.q.trim().toLowerCase();
+            return sortedLogs(v).filter(l =>
+                (!logFilter.cat || l.category === logFilter.cat) &&
+                (!logFilter.month || String(l.date || '').slice(0, 7) === logFilter.month) &&
+                (!q || (String(l.title || '') + ' ' + String(l.notes || '')).toLowerCase().indexOf(q) !== -1));
+        }
+        function monthLabel(key) {
+            const parts = key.split('-');
+            return MONTH_ABBR[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+        }
+        // Isi pilihan bulan dari data kendaraan aktif; pilihan yang tidak lagi ada direset
+        function refreshLogFilterUI(v) {
+            const sel = document.getElementById('log-filter-month');
+            if (!sel) return;
+            const months = [...new Set((v.logs || []).map(l => String(l.date || '').slice(0, 7)).filter(k => /^\d{4}-\d{2}$/.test(k)))].sort().reverse();
+            if (logFilter.month && months.indexOf(logFilter.month) === -1) logFilter.month = '';
+            sel.innerHTML = '<option value="">Semua bulan</option>' + months.map(k => `<option value="${k}">${monthLabel(k)}</option>`).join('');
+            sel.value = logFilter.month;
+            document.getElementById('log-filter-cat').value = logFilter.cat;
+        }
+        function setLogFilter() {
+            logFilter.q = document.getElementById('log-filter-q').value;
+            logFilter.cat = document.getElementById('log-filter-cat').value;
+            logFilter.month = document.getElementById('log-filter-month').value;
+            renderFullLogs();
+        }
+        function resetLogFilter() {
+            logFilter = { q: '', cat: '', month: '' };
+            document.getElementById('log-filter-q').value = '';
+            renderFullLogs();
+        }
+        // Escape CSV + penangkal formula (=, +, -, @) pada kolom teks agar aman dibuka di Excel/Sheets
+        function csvField(val, sep, isText) {
+            let t = String(val == null ? '' : val);
+            if (isText && /^[=+\-@\t\r]/.test(t)) t = "'" + t;
+            return (t.indexOf(sep) !== -1 || /["\r\n]/.test(t)) ? '"' + t.replace(/"/g, '""') + '"' : t;
+        }
+        function exportLogsCSV() {
+            const v = appData.vehicles[appData.activeVehicle];
+            const rows = filteredLogs(v);
+            if (!rows.length) { showToast('Tidak ada catatan untuk diekspor'); return; }
+            const sep = document.getElementById('csv-sep').value === ',' ? ',' : ';';
+            const head = ['Tanggal', 'Kendaraan', 'Plat', 'Kategori', 'Judul', 'Biaya (Rp)', 'Odometer (KM)', 'Catatan', 'Ada Struk'];
+            const lines = [head.map(h => csvField(h, sep, false)).join(sep)];
+            rows.forEach(l => lines.push([
+                csvField(l.date || '', sep, false), csvField(v.name, sep, true), csvField(v.plate, sep, true),
+                csvField(CATEGORY_LABELS[l.category] || l.category, sep, true), csvField(l.title, sep, true),
+                Number(l.cost) || 0, l.km || '', csvField(l.notes, sep, true), l.receipt ? 'Ya' : 'Tidak'
+            ].join(sep)));
+            const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });   // BOM agar Excel membaca UTF-8
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'motorlog_riwayat_' + (String(v.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'kendaraan') + '_' + todayStr() + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+            showToast(rows.length + ' catatan diekspor ke CSV');
+        }
+
         function viewLogReceipt(logId) {
             const v = appData.vehicles[appData.activeVehicle];
             const log = (v.logs || []).find(l => l.id === logId);
@@ -1807,12 +2136,21 @@
             const container = document.getElementById('full-logs-container');
             const v = appData.vehicles[appData.activeVehicle];
 
+            refreshLogFilterUI(v);
+            const summary = document.getElementById('log-filter-summary');
             if (!v.logs || v.logs.length === 0) {
+                summary.innerText = '';
                 container.innerHTML = `<div class="p-8 text-center text-xs text-slate-500">Belum ada catatan log.</div>`;
                 return;
             }
 
-            const sorted = sortedLogs(v);
+            const sorted = filteredLogs(v);
+            const filteredTotal = sorted.reduce((acc, l) => acc + (Number(l.cost) || 0), 0);
+            summary.innerText = `${sorted.length} dari ${v.logs.length} catatan · Total Rp ${filteredTotal.toLocaleString('id-ID')}`;
+            if (!sorted.length) {
+                container.innerHTML = `<div class="p-8 text-center text-xs text-slate-500">Tidak ada catatan yang cocok dengan filter.</div>`;
+                return;
+            }
             container.innerHTML = sorted.map(log => `
                 <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm flex items-start justify-between gap-3 text-xs cursor-pointer select-none"
                      onmousedown="startLogHold(${log.id})" onmouseup="endLogHold()" onmouseleave="endLogHold()"
@@ -2333,8 +2671,7 @@
 
         function toggleDarkMode() {
             appData.darkMode = !(appData.darkMode !== false);
-            saveData();
-            if (activeTab === 'analytics') renderAnalytics();   // warna teks grafik ikut tema
+            saveData();   // renderApp menyegarkan tab aktif (termasuk warna teks grafik)
         }
 
         function saveBikeProfile() {
@@ -2387,6 +2724,48 @@
             }
         }
 
+        // Ringkasan biaya per tahun + total biaya kepemilikan
+        function renderYearlySummary(v) {
+            const totalsEl = document.getElementById('yearlySummaryTotals');
+            const listEl = document.getElementById('yearlySummaryList');
+            if (!totalsEl || !listEl) return;
+            const logs = v.logs || [];
+            const sumCost = (arr) => arr.reduce((acc, l) => acc + (Number(l.cost) || 0), 0);
+            const all = sumCost(logs);
+            const multi = Object.keys(appData.vehicles).length > 1;
+            const allVehicles = Object.values(appData.vehicles).reduce((acc, x) => acc + sumCost(x.logs || []), 0);
+            totalsEl.innerHTML = `<div class="grid ${multi ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
+                <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800"><span class="text-[10px] text-slate-400 block">Total biaya kendaraan ini</span><span class="text-sm font-bold text-emerald-400">Rp ${all.toLocaleString('id-ID')}</span></div>
+                ${multi ? `<div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800"><span class="text-[10px] text-slate-400 block">Semua kendaraan</span><span class="text-sm font-bold text-amber-400">Rp ${allVehicles.toLocaleString('id-ID')}</span></div>` : ''}
+            </div>`;
+
+            const groups = {};
+            logs.forEach(l => {
+                const y = /^\d{4}/.test(l.date || '') ? String(l.date).slice(0, 4) : 'Tanpa tanggal';
+                (groups[y] = groups[y] || []).push(l);
+            });
+            const years = Object.keys(groups).sort((a, b) => ((a === 'Tanpa tanggal') - (b === 'Tanpa tanggal')) || b.localeCompare(a));
+            if (!years.length) {
+                listEl.innerHTML = `<div class="text-center text-[11px] text-slate-500 py-2">Belum ada data biaya.</div>`;
+                return;
+            }
+            listEl.innerHTML = years.map(y => {
+                const arr = groups[y];
+                const total = sumCost(arr);
+                const cats = {};
+                arr.forEach(l => { const k = CATEGORY_LABELS[l.category] || l.category || 'Lain-lain'; cats[k] = (cats[k] || 0) + (Number(l.cost) || 0); });
+                const chips = Object.keys(cats).filter(k => cats[k] > 0).sort((a, b) => cats[b] - cats[a])
+                    .map(k => `<span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[9px] text-slate-300">${esc(k)} Rp ${cats[k].toLocaleString('id-ID')}</span>`).join(' ');
+                const kms = [...arr.map(l => l.km), ...(v.bbmLogs || []).filter(b => String(b.date || '').slice(0, 4) === y).map(b => b.odo)]
+                    .filter(n => Number.isFinite(n) && n > 0);
+                const dist = kms.length > 1 ? Math.max(...kms) - Math.min(...kms) : 0;
+                const perKm = dist > 0 ? `<span class="block text-[10px] text-slate-400">${dist.toLocaleString('id-ID')} KM tercatat · Rp ${Math.round(total / dist).toLocaleString('id-ID')}/KM</span>` : '';
+                return `<div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 space-y-1.5">
+                    <div class="flex justify-between items-baseline"><span class="text-xs font-bold text-slate-200">${esc(y)}</span><span class="text-xs font-bold text-emerald-400">Rp ${total.toLocaleString('id-ID')}</span></div>
+                    <div class="flex flex-wrap gap-1">${chips}</div>${perKm}</div>`;
+            }).join('');
+        }
+
         // Render Analytics Charts (semua angka dihitung dari catatan asli)
         function renderAnalytics() {
             const v = appData.vehicles[appData.activeVehicle];
@@ -2405,6 +2784,7 @@
             const knownKms = [...logs.map(l => l.km), ...bbm.map(b => b.odo)].filter(n => Number.isFinite(n) && n > 0);
             const trackedKm = knownKms.length ? Math.max(0, v.odometer - Math.min(...knownKms)) : 0;
             document.getElementById('analyticTotalKm').innerText = `${trackedKm.toLocaleString('id-ID')} KM`;
+            renderYearlySummary(v);
 
             // Rata-rata biaya per bulan = total biaya / jumlah bulan sejak catatan pertama (minimal 1)
             const totalExpense = logs.reduce((acc, l) => acc + (l.cost || 0), 0);
@@ -2456,6 +2836,47 @@
                         backgroundColor: 'rgba(245, 158, 11, 0.1)',
                         fill: true,
                         tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { display: false }, x: { ticks: { color: tickColor, font: { size: 9 } } } }
+                }
+            });
+
+            // Harga BBM per liter (biaya / liter tiap pengisian)
+            const priced = bbm.filter(b => b.liter > 0 && b.cost > 0 && b.date).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+            const priceData = priced.map(b => Math.round(b.cost / b.liter));
+            const priceLabels = priced.map(b => String(b.date).slice(5));
+            const sumPriceCost = priced.reduce((acc, b) => acc + b.cost, 0);
+            const sumPriceLiter = priced.reduce((acc, b) => acc + b.liter, 0);
+            document.getElementById('fuelPriceLast').innerText = priceData.length ? `Rp ${priceData[priceData.length - 1].toLocaleString('id-ID')}/L` : '- /L';
+            document.getElementById('fuelPriceAvg').innerText = sumPriceLiter > 0 ? `Rp ${Math.round(sumPriceCost / sumPriceLiter).toLocaleString('id-ID')}/L` : '-';
+            const changeEl = document.getElementById('fuelPriceChange');
+            if (priceData.length >= 2) {
+                const prev = priceData[priceData.length - 2], last = priceData[priceData.length - 1];
+                const pct = (last - prev) / prev * 100;
+                changeEl.innerText = (pct > 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + '%';
+                changeEl.className = 'text-xs font-bold ' + (pct > 0 ? 'text-red-400' : pct < 0 ? 'text-emerald-400' : 'text-slate-300');
+            } else {
+                changeEl.innerText = '-';
+                changeEl.className = 'text-xs font-bold text-slate-300';
+            }
+            const ctxPrice = document.getElementById('fuelPriceChart').getContext('2d');
+            if (fuelPriceChartInstance) fuelPriceChartInstance.destroy();
+            fuelPriceChartInstance = new Chart(ctxPrice, {
+                type: 'line',
+                data: {
+                    labels: priceLabels.slice(-8),
+                    datasets: [{
+                        label: 'Rp/L',
+                        data: priceData.slice(-8),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.3
                     }]
                 },
                 options: {
