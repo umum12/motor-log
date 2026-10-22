@@ -48,6 +48,31 @@
         .btn-touch { transition: transform 0.1s ease, opacity 0.1s ease; }
         .btn-touch:active { transform: scale(0.96); opacity: 0.9; }
         .press-hold-active { transform: scale(0.97); filter: brightness(1.1); transition: transform 0.2s; }
+        /* ===== Mode terang: menimpa warna gelap yang tertulis tetap, aktif saat <html> tidak punya class "dark" ===== */
+        html:not(.dark) body.bg-slate-900 { background-color: #e2e8f0; }
+        html:not(.dark) .bg-slate-950 { background-color: #f1f5f9; }
+        html:not(.dark) .bg-slate-900 { background-color: #ffffff; }
+        html:not(.dark) .bg-slate-900\/95 { background-color: rgba(255,255,255,.95); }
+        html:not(.dark) .bg-slate-800 { background-color: #e2e8f0; }
+        html:not(.dark) .hover\:bg-slate-700:hover { background-color: #cbd5e1; }
+        html:not(.dark) .hover\:bg-slate-800\/50:hover { background-color: rgba(226,232,240,.6); }
+        html:not(.dark) .hover\:bg-slate-900:hover { background-color: #f8fafc; }
+        html:not(.dark) .text-slate-100 { color: #0f172a; }
+        html:not(.dark) .text-slate-200 { color: #1e293b; }
+        html:not(.dark) .text-slate-300 { color: #334155; }
+        html:not(.dark) .text-slate-400, html:not(.dark) .text-slate-500 { color: #64748b; }
+        html:not(.dark) .hover\:text-slate-200:hover, html:not(.dark) .hover\:text-white:hover { color: #0f172a; }
+        html:not(.dark) .border-slate-800, html:not(.dark) .border-slate-800\/80 { border-color: #e2e8f0; }
+        html:not(.dark) .border-slate-700 { border-color: #cbd5e1; }
+        html:not(.dark) .border-slate-700\/60 { border-color: rgba(203,213,225,.6); }
+        html:not(.dark) .divide-slate-800\/80 > :not([hidden]) ~ :not([hidden]) { border-color: #e2e8f0; }
+        html:not(.dark) .text-amber-400 { color: #b45309; }
+        html:not(.dark) .text-amber-500 { color: #d97706; }
+        html:not(.dark) .hover\:text-amber-300:hover { color: #92400e; }
+        html:not(.dark) .text-blue-400 { color: #2563eb; }
+        html:not(.dark) .text-emerald-400 { color: #059669; }
+        html:not(.dark) .text-purple-400 { color: #7e22ce; }
+        html:not(.dark) .text-red-400 { color: #dc2626; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex justify-center items-center p-0 sm:p-4 transition-colors duration-300">
@@ -133,7 +158,7 @@
 
                 <!-- Quick Action Buttons -->
                 <div class="grid grid-cols-4 gap-2">
-                    <button onclick="openModal('modal-log')" class="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm hover:border-slate-700 transition flex flex-col items-center text-center gap-1 btn-touch">
+                    <button onclick="openNewLogModal()" class="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-sm hover:border-slate-700 transition flex flex-col items-center text-center gap-1 btn-touch">
                         <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-sm">
                             <i class="fas fa-plus"></i>
                         </div>
@@ -251,9 +276,9 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <h3 class="font-bold text-sm text-slate-100">Riwayat Catatan & Pengeluaran</h3>
-                        <p class="text-[10px] text-amber-400 font-medium">💡 Tekan & tahan catatan untuk opsi hapus/detail</p>
+                        <p class="text-[10px] text-amber-400 font-medium">💡 Tekan & tahan catatan untuk opsi edit/hapus/detail</p>
                     </div>
-                    <button onclick="openModal('modal-log')" class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1 btn-touch shrink-0">
+                    <button onclick="openNewLogModal()" class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1 btn-touch shrink-0">
                         <i class="fas fa-plus"></i> Catat Log
                     </button>
                 </div>
@@ -383,6 +408,7 @@
                         <i class="fas fa-file-export text-blue-400"></i> Backup & Restore Data JSON
                     </h4>
                     <p class="text-[11px] text-slate-400">Ekspor data ke file JSON untuk cadangan atau impor ke perangkat lain.</p>
+                    <p id="lastBackupInfo" class="text-[11px] text-amber-400 font-medium"></p>
                     <div class="grid grid-cols-2 gap-2 pt-1">
                         <button onclick="exportDataJSON()" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5">
                             <i class="fas fa-download text-amber-400"></i> Ekspor JSON
@@ -392,6 +418,19 @@
                             <input type="file" accept=".json" onchange="importDataJSON(event)" class="hidden">
                         </label>
                     </div>
+                    <button onclick="shareBackupJSON()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5">
+                        <i class="fas fa-share-nodes"></i> Bagikan Backup (Simpan ke Drive)
+                    </button>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                    <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fas fa-calendar-plus text-emerald-400"></i> Pengingat ke Kalender
+                    </h4>
+                    <p class="text-[11px] text-slate-400">Ekspor jatuh tempo pajak, STNK, SIM, dan perkiraan servis semua kendaraan ke file .ics. Buka filenya di HP lalu pilih Google Kalender agar pengingat berbunyi walau aplikasi tertutup (7 hari, 1 hari, dan hari-H pukul 09.00). Ekspor ulang kapan saja untuk memperbarui tanggalnya.</p>
+                    <button onclick="exportCalendarICS()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5">
+                        <i class="fas fa-calendar-plus"></i> Ekspor ke Kalender (.ics)
+                    </button>
                 </div>
 
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-2">
@@ -572,6 +611,9 @@
                     <button id="log-view-receipt-btn" onclick="" class="hidden w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold rounded-xl btn-touch flex items-center justify-center gap-1.5">
                         <i class="fas fa-receipt"></i> Lihat Struk Bukti Foto
                     </button>
+                    <button id="log-edit-btn" onclick="" class="w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 font-semibold rounded-xl btn-touch flex items-center justify-center gap-1.5">
+                        <i class="fas fa-pen-to-square"></i> Edit Catatan Ini
+                    </button>
                     <button id="log-delete-btn" onclick="" class="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-semibold rounded-xl btn-touch flex items-center justify-center gap-1.5">
                         <i class="fas fa-trash-alt"></i> Hapus Catatan Ini
                     </button>
@@ -584,7 +626,7 @@
             <div class="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl p-5 shadow-2xl space-y-3.5">
                 <div class="flex justify-between items-center border-b border-slate-800 pb-2">
                     <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2">
-                        <i class="fas fa-edit text-amber-500"></i> Catat Transaksi Pengeluaran
+                        <i class="fas fa-edit text-amber-500"></i> <span id="log-modal-title">Catat Transaksi Pengeluaran</span>
                     </h3>
                     <button onclick="closeModal('modal-log')" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
                 </div>
@@ -615,6 +657,11 @@
                         </div>
                     </div>
 
+                    <div>
+                        <label class="block font-medium text-slate-400 mb-1">Tanggal</label>
+                        <input type="date" id="log-date" class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+
                     <!-- Receipt Photo Upload Box -->
                     <div id="receipt-upload-container" class="space-y-1">
                         <label class="block font-medium text-slate-400">Bukti Foto Struk (BBM & Parkir)</label>
@@ -637,7 +684,7 @@
                         <label class="block font-medium text-slate-400 mb-1">Catatan Tambahan (Opsional)</label>
                         <textarea id="log-notes" rows="2" placeholder="Keterangan tempat / rincian..." class="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"></textarea>
                     </div>
-                    <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg transition btn-touch">Simpan Catatan Log</button>
+                    <button type="submit" id="log-submit-btn" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg transition btn-touch">Simpan Catatan Log</button>
                 </form>
             </div>
         </div>
@@ -818,10 +865,34 @@
             <span id="toast-message">Data berhasil diperbarui!</span>
         </div>
 
+        <!-- Undo Toast -->
+        <div id="undo-toast" class="fixed sm:absolute bottom-20 left-3 right-3 z-50 bg-slate-800 text-slate-100 text-xs font-semibold px-4 py-2.5 rounded-2xl shadow-2xl opacity-0 pointer-events-none transition-all duration-300 flex items-center justify-between gap-3 border border-slate-700">
+            <span id="undo-message">Dihapus</span>
+            <button onclick="performUndo()" class="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg btn-touch shrink-0">Urungkan</button>
+        </div>
+
     </div>
 
     <!-- Application Script Logic -->
     <script>
+        // ===== Helper tanggal (zona waktu LOKAL, bukan UTC) & escape HTML =====
+        function pad2(n) { return String(n).padStart(2, '0'); }
+        function localDateStr(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+        function todayStr() { return localDateStr(new Date()); }
+        function parseLocalDate(str) {
+            var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(str || '');
+            return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(NaN);
+        }
+        // Selisih hari kalender (lokal) dari hari ini ke tanggal "YYYY-MM-DD"
+        function daysUntil(str) {
+            var t = new Date();
+            var today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+            return Math.round((parseLocalDate(str) - today) / 86400000);
+        }
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
         const COLOR_THEMES = {
             amber: { name: 'Amber', gradient: 'from-amber-500 via-amber-600 to-amber-700', text: 'text-amber-500', bg: 'bg-amber-500' },
             blue: { name: 'Blue', gradient: 'from-blue-500 via-blue-600 to-blue-700', text: 'text-blue-500', bg: 'bg-blue-500' },
@@ -893,7 +964,26 @@
             }
         };
 
-        let appData = JSON.parse(localStorage.getItem('mogtor_pro_unified_data')) || defaultData;
+        // ===== PWA Isolation: key penyimpanan terikat ke path repo (origin github.io dipakai bersama) =====
+        const APP_BASE_PATH = location.pathname.replace(/[^\/]*$/, '');            // mis. "/nama-repo/"
+        const STORAGE_KEY = 'motorlog_pro:' + APP_BASE_PATH + ':data';
+        const STORAGE_MIGRATED_FLAG = 'motorlog_pro:' + APP_BASE_PATH + ':migrated';
+        const LEGACY_STORAGE_KEY = 'mogtor_pro_unified_data';                       // key lama (tidak dihapus)
+        (function migrateLegacyStorage() {
+            try {
+                if (localStorage.getItem(STORAGE_MIGRATED_FLAG)) return;
+                if (localStorage.getItem(STORAGE_KEY) === null) {
+                    var old = localStorage.getItem(LEGACY_STORAGE_KEY);
+                    if (old !== null) {
+                        var parsedOld = JSON.parse(old);
+                        // hanya salin jika bentuknya benar-benar data aplikasi ini
+                        if (parsedOld && parsedOld.vehicles && parsedOld.activeVehicle) localStorage.setItem(STORAGE_KEY, old);
+                    }
+                }
+                localStorage.setItem(STORAGE_MIGRATED_FLAG, '1');
+            } catch (e) { /* storage tidak tersedia / data lama rusak: lanjut dengan data default */ }
+        })();
+        let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultData;
         let activeTab = 'beranda';
         let currentReceiptData = '';
         let fuelChartInstance = null;
@@ -901,8 +991,264 @@
         let monthlyChartInstance = null;
         let notificationDismissed = false;
 
+        // ===== Foto struk: disimpan di IndexedDB (bukan localStorage) agar penyimpanan tidak cepat penuh =====
+        const RECEIPT_DB_NAME = 'motorlog_pro:' + APP_BASE_PATH + ':receipts';
+        const RECEIPT_STORE = 'receipts';
+        let receiptDbPromise = null;
+        function getReceiptDb() {
+            if (!receiptDbPromise) {
+                receiptDbPromise = new Promise(function (resolve, reject) {
+                    if (!window.indexedDB) { reject(new Error('IndexedDB tidak tersedia')); return; }
+                    var req = indexedDB.open(RECEIPT_DB_NAME, 1);
+                    req.onupgradeneeded = function () { req.result.createObjectStore(RECEIPT_STORE); };
+                    req.onsuccess = function () { resolve(req.result); };
+                    req.onerror = function () { reject(req.error); };
+                }).catch(function (err) { receiptDbPromise = null; throw err; });
+            }
+            return receiptDbPromise;
+        }
+        function idbRequest(mode, fn) {
+            return getReceiptDb().then(function (db) {
+                return new Promise(function (resolve, reject) {
+                    var tx = db.transaction(RECEIPT_STORE, mode);
+                    var req = fn(tx.objectStore(RECEIPT_STORE));
+                    tx.oncomplete = function () { resolve(req && 'result' in req ? req.result : undefined); };
+                    tx.onerror = tx.onabort = function () { reject(tx.error); };
+                });
+            });
+        }
+        // Mengembalikan referensi "idb:<id>". Jika IndexedDB gagal, foto tetap disimpan inline seperti sebelumnya.
+        async function receiptPut(dataUrl) {
+            try {
+                const blob = await (await fetch(dataUrl)).blob();
+                const id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+                await idbRequest('readwrite', function (s) { return s.put(blob, id); });
+                return 'idb:' + id;
+            } catch (err) { return dataUrl; }
+        }
+        function blobToDataUrl(blob) {
+            return new Promise(function (resolve, reject) {
+                var r = new FileReader();
+                r.onload = function () { resolve(r.result); };
+                r.onerror = function () { reject(r.error); };
+                r.readAsDataURL(blob);
+            });
+        }
+        async function receiptGetDataUrl(ref) {
+            if (!ref) return '';
+            if (ref.indexOf('idb:') !== 0) return ref;      // data lama yang masih inline
+            try {
+                const blob = await idbRequest('readonly', function (s) { return s.get(ref.slice(4)); });
+                return blob ? await blobToDataUrl(blob) : '';
+            } catch (err) { return ''; }
+        }
+        function receiptDelete(ref) {
+            if (ref && ref.indexOf('idb:') === 0) idbRequest('readwrite', function (s) { return s.delete(ref.slice(4)); }).catch(function () {});
+        }
+        // Hapus foto yang tidak lagi dirujuk catatan mana pun
+        async function receiptGc() {
+            try {
+                const keys = await idbRequest('readonly', function (s) { return s.getAllKeys(); });
+                const used = new Set();
+                Object.values(appData.vehicles || {}).forEach(function (v) {
+                    (v.logs || []).forEach(function (l) { if (l.receipt && l.receipt.indexOf('idb:') === 0) used.add(l.receipt.slice(4)); });
+                });
+                if (pendingUndo) {
+                    var re = /idb:([A-Za-z0-9]+)/g, m;
+                    while ((m = re.exec(pendingUndo.snapshot))) used.add(m[1]);
+                }
+                const orphans = (keys || []).filter(function (k) { return !used.has(k); });
+                if (orphans.length) await idbRequest('readwrite', function (s) { orphans.forEach(function (k) { s.delete(k); }); return null; });
+            } catch (err) { /* abaikan */ }
+        }
+        // Pindahkan struk lama (base64 di localStorage) ke IndexedDB, sekali jalan
+        async function migrateInlineReceipts() {
+            let changed = false;
+            for (const v of Object.values(appData.vehicles || {})) {
+                for (const l of (v.logs || [])) {
+                    if (l.receipt && l.receipt.indexOf('data:') === 0) {
+                        const ref = await receiptPut(l.receipt);
+                        if (ref.indexOf('idb:') === 0) { l.receipt = ref; changed = true; }
+                    }
+                }
+            }
+            if (changed) saveData();
+        }
+        // Salinan data untuk backup: foto dikembalikan menjadi data URL agar file backup berdiri sendiri
+        async function buildBackupData() {
+            const copy = JSON.parse(JSON.stringify(appData));
+            for (const v of Object.values(copy.vehicles || {})) {
+                for (const l of (v.logs || [])) {
+                    if (l.receipt && l.receipt.indexOf('idb:') === 0) l.receipt = await receiptGetDataUrl(l.receipt);
+                }
+            }
+            return copy;
+        }
+        // Dari file backup: foto inline -> IndexedDB; referensi "idb:" dari perangkat lain tidak valid -> dikosongkan
+        async function restoreReceiptsFromBackup(data) {
+            for (const v of Object.values(data.vehicles || {})) {
+                for (const l of (v.logs || [])) {
+                    if (!l.receipt) continue;
+                    if (l.receipt.indexOf('data:') === 0) l.receipt = await receiptPut(l.receipt);
+                    else if (l.receipt.indexOf('idb:') === 0) l.receipt = '';
+                }
+            }
+        }
+
+        // ===== Ekspor pengingat ke kalender (.ics) =====
+        function icsEscape(t) {
+            return String(t == null ? '' : t).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+        }
+        // RFC 5545: baris maks 75 oktet -> lipat di 70 oktet, lanjutan diawali spasi
+        function icsFold(line) {
+            const enc = new TextEncoder();
+            const out = [];
+            let cur = '', bytes = 0;
+            for (const ch of line) {
+                const b = enc.encode(ch).length;
+                if (bytes + b > 70) { out.push(cur); cur = ' ' + ch; bytes = 1 + b; }
+                else { cur += ch; bytes += b; }
+            }
+            out.push(cur);
+            return out.join('\r\n');
+        }
+        function icsDate(str) { return String(str).slice(0, 10).replace(/-/g, ''); }
+        function icsNextDay(str) {
+            const d = parseLocalDate(str);
+            return localDateStr(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)).replace(/-/g, '');
+        }
+        function icsUtcStamp(d) {
+            return d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate()) + 'T' + pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds()) + 'Z';
+        }
+        function buildCalendarICS() {
+            const now = new Date();
+            const stamp = icsUtcStamp(now);
+            const seq = Math.floor(now.getTime() / 1000);                       // naik tiap ekspor -> kalender memperbarui, bukan menggandakan
+            const scope = APP_BASE_PATH.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'root';
+            const events = [];
+            function add(uidKey, dateStr, summary, description) {
+                if (!/^\d{4}-\d{2}-\d{2}/.test(dateStr || '') || daysUntil(dateStr) < 0) return;   // hanya tanggal yang akan datang
+                events.push({ uid: uidKey + '@motorlog-pro.' + scope, date: String(dateStr).slice(0, 10), summary: summary, description: description });
+            }
+            Object.keys(appData.vehicles || {}).forEach(function (id) {
+                const v = appData.vehicles[id];
+                const label = v.name + ' (' + v.plate + ')';
+                if (v.taxDates) {
+                    add('pajak-' + id, v.taxDates.annual, 'Pajak tahunan ' + label, 'Jatuh tempo pajak kendaraan tahunan.');
+                    add('stnk-' + id, v.taxDates.fiveYear, 'Ganti plat 5 tahunan ' + label, 'Jatuh tempo penggantian plat nomor 5 tahunan.');
+                }
+                const rate = getUsageRate(v);
+                Object.keys(v.parts || {}).forEach(function (k) {
+                    const part = v.parts[k];
+                    if (calculatePartHealth(part, v.odometer).dominantPct >= 100) return;          // sudah lewat batas: bukan perkiraan masa depan
+                    const pred = predictPartDue(part, v, rate);
+                    if (pred) add('servis-' + id + '-' + k, localDateStr(pred.due), 'Servis ' + part.name + ' - ' + label,
+                        'Perkiraan jadwal berdasar ' + pred.basis + '. Odometer saat ini ' + Number(v.odometer).toLocaleString('id-ID') + ' KM. Perkiraan dapat bergeser mengikuti pemakaian.');
+                });
+            });
+            const simExp = (appData.simData && appData.simData.expiryDate) || appData.simDate;
+            const simType = (appData.simData && appData.simData.type) || '';
+            if (simExp) add('sim', simExp, ('Masa berlaku SIM ' + simType + ' habis').replace('  ', ' '), 'Perpanjang SIM sebelum kedaluwarsa.');
+
+            const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MotorLog Pro//Pengingat//ID', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:MotorLog Pro'];
+            events.forEach(function (e) {
+                L.push('BEGIN:VEVENT', 'UID:' + e.uid, 'DTSTAMP:' + stamp, 'SEQUENCE:' + seq,
+                    'DTSTART;VALUE=DATE:' + icsDate(e.date), 'DTEND;VALUE=DATE:' + icsNextDay(e.date),
+                    'SUMMARY:' + icsEscape(e.summary), 'DESCRIPTION:' + icsEscape(e.description), 'TRANSP:TRANSPARENT');
+                // alarm pukul 09:00: 7 hari sebelum, 1 hari sebelum, dan pada harinya
+                [['-P6DT15H', '7 hari lagi'], ['-PT15H', 'besok'], ['PT9H', 'hari ini']].forEach(function (a) {
+                    L.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape(e.summary + ' (' + a[1] + ')'), 'TRIGGER:' + a[0], 'END:VALARM');
+                });
+                L.push('END:VEVENT');
+            });
+            L.push('END:VCALENDAR');
+            return { text: L.map(icsFold).join('\r\n') + '\r\n', count: events.length };
+        }
+        function exportCalendarICS() {
+            const res = buildCalendarICS();
+            if (!res.count) { showToast('Belum ada tanggal mendatang untuk diekspor'); return; }
+            const blob = new Blob([res.text], { type: 'text/calendar;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'motorlog_pengingat_' + todayStr() + '.ics';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+            showToast(res.count + ' pengingat diekspor. Buka file untuk menambahkannya ke Kalender');
+        }
+
+        // ===== Urungkan (undo) satu langkah untuk hapus & impor =====
+        const UNDO_MS = 8000;
+        let pendingUndo = null;     // { snapshot: string JSON appData sebelum perubahan, timer }
+        function captureUndoSnapshot() { return JSON.stringify(appData); }
+        function showUndoToast(msg) {
+            document.getElementById('undo-message').innerText = msg;
+            document.getElementById('undo-toast').classList.remove('opacity-0', 'pointer-events-none');
+        }
+        function hideUndoToast() {
+            const el = document.getElementById('undo-toast');
+            if (el) el.classList.add('opacity-0', 'pointer-events-none');
+        }
+        // Dipanggil SETELAH perubahan dilakukan. Foto struk tidak dihapus dulu agar bisa dikembalikan.
+        function offerUndo(message, snapshot) {
+            const prev = pendingUndo;
+            if (prev) clearTimeout(prev.timer);
+            pendingUndo = { snapshot: snapshot, timer: setTimeout(finalizeUndo, UNDO_MS) };
+            showUndoToast(message);
+            if (prev) receiptGc();      // undo lama dilepas; undo baru tetap dilindungi
+        }
+        // Jendela undo habis: foto yatim dibersihkan
+        function finalizeUndo() {
+            if (!pendingUndo) return;
+            clearTimeout(pendingUndo.timer);
+            pendingUndo = null;
+            hideUndoToast();
+            receiptGc();
+        }
+        function performUndo() {
+            if (!pendingUndo) return;
+            const snap = pendingUndo.snapshot;
+            clearTimeout(pendingUndo.timer);
+            pendingUndo = null;
+            hideUndoToast();
+            const restored = JSON.parse(snap);
+            restored.darkMode = appData.darkMode;     // pilihan tema tidak ikut mundur
+            appData = restored;
+            saveData();
+            receiptGc();
+            showToast('Dikembalikan!');
+        }
+
+        // ===== Pengingat backup =====
+        const LAST_BACKUP_KEY = 'motorlog_pro:' + APP_BASE_PATH + ':last_backup_at';
+        const FIRST_SEEN_KEY = 'motorlog_pro:' + APP_BASE_PATH + ':first_seen_at';
+        const BACKUP_REMIND_DAYS = 30;
+        function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+        function getBackupStatus() {
+            let first = parseInt(lsGet(FIRST_SEEN_KEY), 10);
+            if (!first) { first = Date.now(); lsSet(FIRST_SEEN_KEY, String(first)); }
+            const last = parseInt(lsGet(LAST_BACKUP_KEY), 10) || 0;
+            const days = Math.floor((Date.now() - (last || first)) / 86400000);
+            return { last, days, overdue: days >= BACKUP_REMIND_DAYS };
+        }
+        function markBackupDone() {
+            lsSet(LAST_BACKUP_KEY, String(Date.now()));
+            updateBackupInfo();
+        }
+        function updateBackupInfo() {
+            const el = document.getElementById('lastBackupInfo');
+            if (!el) return;
+            const st = getBackupStatus();
+            el.innerText = st.last
+                ? `Backup terakhir: ${formatDateIndo(localDateStr(new Date(st.last)))} (${st.days === 0 ? 'hari ini' : st.days + ' hari lalu'})`
+                : 'Belum pernah backup dari perangkat ini.';
+        }
+
         function saveData() {
-            localStorage.setItem('mogtor_pro_unified_data', JSON.stringify(appData));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
             renderApp();
         }
 
@@ -931,6 +1277,7 @@
         }
 
         function renderApp() {
+            applyTheme();
             renderVehicleSwitcherTabs();
             const v = appData.vehicles[appData.activeVehicle];
             if (!v) return;
@@ -975,6 +1322,7 @@
             populateServicePartSelect();
             toggleReceiptUploadField();
             checkNotificationsAndReminders();
+            updateBackupInfo();
         }
 
         function renderVehicleSwitcherTabs() {
@@ -986,7 +1334,7 @@
                 return `
                     <button onclick="switchVehicle('${key}')" class="px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shrink-0 btn-touch ${isActive ? `${color.bg} text-slate-950 font-bold shadow-sm scale-105` : 'bg-slate-950 text-slate-400 border border-slate-800'}">
                         <i class="fas ${v.icon} text-xs"></i>
-                        <span>${v.name.split(' ')[0]}</span>
+                        <span>${esc(v.name.split(' ')[0])}</span>
                     </button>
                 `;
             }).join('');
@@ -998,7 +1346,7 @@
             if (!v || !v.parts) return;
 
             select.innerHTML = Object.keys(v.parts).map(key => `
-                <option value="${key}">${v.parts[key].name}</option>
+                <option value="${esc(key)}">${esc(v.parts[key].name)}</option>
             `).join('');
         }
 
@@ -1020,9 +1368,9 @@
                 icon: type === 'motor' ? 'fa-motorcycle' : 'fa-car-side',
                 color,
                 odometer: km,
-                taxDates: { annual: new Date().toISOString().split('T')[0], fiveYear: new Date().toISOString().split('T')[0] },
+                taxDates: { annual: todayStr(), fiveYear: todayStr() },
                 parts: {
-                    oli_mesin: { name: "Oli Mesin", lastKm: km, maxKm: type === 'motor' ? 3000 : 10000, lastDate: new Date().toISOString().split('T')[0], maxMonths: 6, icon: "fa-oil-can" }
+                    oli_mesin: { name: "Oli Mesin", lastKm: km, maxKm: type === 'motor' ? 3000 : 10000, lastDate: todayStr(), maxMonths: 6, icon: "fa-oil-can" }
                 },
                 bbmLogs: [],
                 logs: []
@@ -1043,11 +1391,12 @@
             }
 
             if (confirm(`Apakah Anda yakin ingin menghapus ${appData.vehicles[appData.activeVehicle].name}?`)) {
+                const undoSnap = captureUndoSnapshot();
                 delete appData.vehicles[appData.activeVehicle];
                 appData.activeVehicle = Object.keys(appData.vehicles)[0];
                 notificationDismissed = false;
                 saveData();
-                showToast('Kendaraan telah dihapus.');
+                offerUndo('Kendaraan dihapus', undoSnap);
             }
         }
 
@@ -1067,7 +1416,7 @@
                 name,
                 lastKm: v.odometer,
                 maxKm,
-                lastDate: new Date().toISOString().split('T')[0],
+                lastDate: todayStr(),
                 maxMonths,
                 icon
             };
@@ -1114,10 +1463,11 @@
             const v = appData.vehicles[appData.activeVehicle];
             if (v && v.parts && v.parts[key]) {
                 if (confirm(`Hapus komponen master ${v.parts[key].name}?`)) {
+                    const undoSnap = captureUndoSnapshot();
                     delete v.parts[key];
                     saveData();
                     closeModal('modal-edit-part');
-                    showToast('Komponen berhasil dihapus!');
+                    offerUndo('Komponen dihapus', undoSnap);
                 }
             }
         }
@@ -1125,7 +1475,7 @@
         // Component Health Dual Threshold Algorithm
         function calculatePartHealth(part, currentOdo) {
             const today = new Date();
-            const lastDate = part.lastDate ? new Date(part.lastDate) : new Date();
+            const lastDate = part.lastDate ? parseLocalDate(part.lastDate) : new Date();
 
             const usedKm = currentOdo - part.lastKm;
             const kmPct = Math.round((usedKm / part.maxKm) * 100);
@@ -1164,21 +1514,21 @@
                     const part = v.parts[k];
                     const health = calculatePartHealth(part, v.odometer);
                     if (health.dominantPct >= 100) {
-                        alerts.push(`Komponen <b>${part.name}</b> telah mencapai batas usia/KM. Segera servis!`);
+                        alerts.push(`Komponen <b>${esc(part.name)}</b> telah mencapai batas usia/KM. Segera servis!`);
                     }
                 });
             }
 
             // 2. Check Tax Reminders (7 days before)
             if (v && v.taxDates) {
-                const taxDays = Math.ceil((new Date(v.taxDates.annual) - today) / (1000 * 60 * 60 * 24));
+                const taxDays = daysUntil(v.taxDates.annual);
                 if (taxDays <= 7 && taxDays >= 0) {
                     alerts.push(`Pajak Tahunan jatuh tempo dalam <b>${taxDays} hari</b> (${formatDateIndo(v.taxDates.annual)}). Segera bayar!`);
                 } else if (taxDays < 0) {
                     alerts.push(`Pajak Tahunan sudah <b>lewat jatuh tempo</b>! Segera lakukan pembayaran.`);
                 }
 
-                const stnkDays = Math.ceil((new Date(v.taxDates.fiveYear) - today) / (1000 * 60 * 60 * 24));
+                const stnkDays = daysUntil(v.taxDates.fiveYear);
                 if (stnkDays <= 7 && stnkDays >= 0) {
                     alerts.push(`Ganti Plat 5 Tahunan jatuh tempo dalam <b>${stnkDays} hari</b>.`);
                 }
@@ -1187,13 +1537,21 @@
             // 3. Check SIM Reminders (7 days before)
             const simExpDate = appData.simData ? appData.simData.expiryDate : appData.simDate;
             if (simExpDate) {
-                const simDays = Math.ceil((new Date(simExpDate) - today) / (1000 * 60 * 60 * 24));
+                const simDays = daysUntil(simExpDate);
                 const simType = appData.simData?.type ? `SIM ${appData.simData.type}` : 'SIM';
                 if (simDays <= 7 && simDays >= 0) {
                     alerts.push(`Masa berlaku <b>${simType}</b> habis dalam <b>${simDays} hari</b> (${formatDateIndo(simExpDate)}). Segera perpanjang!`);
                 } else if (simDays < 0) {
                     alerts.push(`Masa berlaku <b>${simType}</b> <b>sudah kedaluwarsa</b>! Segera perbarui SIM Anda.`);
                 }
+            }
+
+            // 4. Pengingat backup (30 hari)
+            const backupStatus = getBackupStatus();
+            if (backupStatus.overdue) {
+                alerts.push(backupStatus.last
+                    ? `Sudah <b>${backupStatus.days} hari</b> sejak backup terakhir. Buka tab Garasi &rarr; Bagikan Backup.`
+                    : `Data <b>belum pernah dibackup</b>. Buka tab Garasi &rarr; Bagikan Backup untuk menyimpannya ke Drive.`);
             }
 
             const banner = document.getElementById('notificationBanner');
@@ -1209,6 +1567,41 @@
             }
         }
 
+        // Riwayat diurutkan berdasarkan tanggal (terbaru dulu), lalu urutan input
+        function sortedLogs(v) {
+            return [...(v.logs || [])].sort((a, b) =>
+                String(b.date || '').localeCompare(String(a.date || '')) || ((b.id || 0) - (a.id || 0)));
+        }
+
+        // Rata-rata pemakaian (KM/hari) dari catatan bertanggal; null jika data belum cukup
+        function getUsageRate(v) {
+            const pts = [];
+            (v.logs || []).forEach(l => { if (l.date && Number.isFinite(l.km) && l.km > 0) pts.push({ d: l.date, k: l.km }); });
+            (v.bbmLogs || []).forEach(b => { if (b.date && Number.isFinite(b.odo) && b.odo > 0) pts.push({ d: b.date, k: b.odo }); });
+            if (pts.length < 2) return null;
+            pts.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.k - b.k));
+            const first = pts[0], last = pts[pts.length - 1];
+            const days = (parseLocalDate(last.d) - parseLocalDate(first.d)) / 86400000;
+            const dk = last.k - first.k;
+            if (!(days >= 14) || !(dk > 0)) return null;
+            return dk / days;
+        }
+
+        // Perkiraan tanggal servis: mana yang lebih dulu antara batas usia dan batas KM
+        function predictPartDue(part, v, rate) {
+            const remKm = part.maxKm - (v.odometer - part.lastKm);
+            const last = parseLocalDate(part.lastDate);
+            const timeDue = isNaN(last) ? null : new Date(last.getFullYear(), last.getMonth() + part.maxMonths, last.getDate());
+            let kmDue = null;
+            if (rate && remKm > 0) {
+                const t = new Date();
+                kmDue = new Date(t.getFullYear(), t.getMonth(), t.getDate() + Math.round(remKm / rate));
+            }
+            if (timeDue && (!kmDue || timeDue <= kmDue)) return { due: timeDue, basis: 'usia' };
+            if (kmDue) return { due: kmDue, basis: 'KM' };
+            return null;
+        }
+
         function renderPartsStatus() {
             const v = appData.vehicles[appData.activeVehicle];
             const partsContainer = document.getElementById('partsContainer');
@@ -1217,6 +1610,7 @@
             urgentPartsList.innerHTML = '';
 
             if (!v || !v.parts) return;
+            const rate = getUsageRate(v);
 
             Object.keys(v.parts).forEach(key => {
                 const part = v.parts[key];
@@ -1236,24 +1630,36 @@
                     barColor = "bg-amber-500";
                 }
 
+                // Perkiraan tanggal servis (hanya jika belum melewati batas)
+                let predHtml = '';
+                if (health.dominantPct < 100) {
+                    const pred = predictPartDue(part, v, rate);
+                    if (pred) {
+                        const dueStr = localDateStr(pred.due);
+                        const dd = daysUntil(dueStr);
+                        predHtml = `<p class="text-[10px] text-slate-500 mt-0.5">Perkiraan servis: ± ${formatDateIndo(dueStr)} (${dd > 0 ? dd + ' hari lagi' : 'segera'}, berdasar ${pred.basis})${pred.basis === 'KM' && rate ? ' · ±' + Math.round(rate) + ' KM/hari' : ''}</p>`;
+                    }
+                }
+
                 // Render Full Parts Component Card with Edit Button
                 const cardHtml = `
-                    <div id="part-card-${key}" class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl space-y-2 shadow-sm cursor-pointer select-none" 
-                         onmousedown="startPartHold('${key}')" onmouseup="endPartHold()" onmouseleave="endPartHold()"
-                         ontouchstart="startPartHold('${key}')" ontouchend="endPartHold()">
+                    <div id="part-card-${esc(key)}" class="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl space-y-2 shadow-sm cursor-pointer select-none" 
+                         onmousedown="startPartHold('${esc(key)}')" onmouseup="endPartHold()" onmouseleave="endPartHold()"
+                         ontouchstart="startPartHold('${esc(key)}')" ontouchend="endPartHold()">
                         <div class="flex justify-between items-center">
                             <div class="flex items-center space-x-3">
                                 <div class="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300 text-sm">
-                                    <i class="fas ${part.icon}"></i>
+                                    <i class="fas ${esc(part.icon)}"></i>
                                 </div>
                                 <div>
                                     <h4 class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                                        ${part.name}
-                                        <button onclick="event.stopPropagation(); openEditMasterPartModal('${key}')" title="Edit Interval Master" class="text-[10px] text-amber-400 hover:text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                        ${esc(part.name)}
+                                        <button onclick="event.stopPropagation(); openEditMasterPartModal('${esc(key)}')" title="Edit Interval Master" class="text-[10px] text-amber-400 hover:text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                                             <i class="fas fa-edit"></i> Edit Master
                                         </button>
                                     </h4>
                                     <p class="text-[10px] text-slate-400">Pemakaian: ${health.usedKm.toLocaleString('id-ID')} / ${part.maxKm.toLocaleString('id-ID')} KM (${health.monthDiff}/${part.maxMonths} Bln)</p>
+                                    ${predHtml}
                                 </div>
                             </div>
                             <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">${statusText}</span>
@@ -1270,10 +1676,10 @@
                         <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between text-xs">
                             <div class="flex items-center space-x-2.5">
                                 <div class="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs border border-amber-500/20">
-                                    <i class="fas ${part.icon}"></i>
+                                    <i class="fas ${esc(part.icon)}"></i>
                                 </div>
                                 <div>
-                                    <p class="font-bold text-slate-200 text-xs">${part.name}</p>
+                                    <p class="font-bold text-slate-200 text-xs">${esc(part.name)}</p>
                                     <p class="text-[10px] text-slate-400">${health.isKmLimit ? `${health.usedKm} /${part.maxKm} KM` : `${health.monthDiff} dari max ${part.maxMonths} Bulan`}</p>
                                 </div>
                             </div>
@@ -1328,11 +1734,11 @@
 
             document.getElementById('log-action-title').innerText = log.title;
             document.getElementById('log-action-details').innerHTML = `
-                <div class="flex justify-between"><span>Kategori:</span><span class="font-semibold text-slate-100">${log.category}</span></div>
-                <div class="flex justify-between"><span>Biaya:</span><span class="font-semibold text-emerald-400">Rp ${log.cost.toLocaleString('id-ID')}</span></div>
-                <div class="flex justify-between"><span>Tanggal:</span><span class="font-semibold text-slate-100">${log.date}</span></div>
-                ${log.km ? `<div class="flex justify-between"><span>Odometer:</span><span class="font-semibold text-slate-100">${log.km.toLocaleString('id-ID')} KM</span></div>` : ''}
-                ${log.notes ? `<div class="pt-1 border-t border-slate-800 text-[11px] text-slate-400">Notes: ${log.notes}</div>` : ''}
+                <div class="flex justify-between"><span>Kategori:</span><span class="font-semibold text-slate-100">${esc(log.category)}</span></div>
+                <div class="flex justify-between"><span>Biaya:</span><span class="font-semibold text-emerald-400">Rp ${Number(log.cost || 0).toLocaleString('id-ID')}</span></div>
+                <div class="flex justify-between"><span>Tanggal:</span><span class="font-semibold text-slate-100">${esc(log.date)}</span></div>
+                ${log.km ? `<div class="flex justify-between"><span>Odometer:</span><span class="font-semibold text-slate-100">${Number(log.km).toLocaleString('id-ID')} KM</span></div>` : ''}
+                ${log.notes ? `<div class="pt-1 border-t border-slate-800 text-[11px] text-slate-400">Notes: ${esc(log.notes)}</div>` : ''}
             `;
 
             const receiptBtn = document.getElementById('log-view-receipt-btn');
@@ -1343,16 +1749,24 @@
                 receiptBtn.classList.add('hidden');
             }
 
+            document.getElementById('log-edit-btn').onclick = () => { closeModal('modal-log-action'); openEditLogModal(logId); };
             document.getElementById('log-delete-btn').onclick = () => deleteLogEntry(logId);
             openModal('modal-log-action');
         }
 
         function deleteLogEntry(logId) {
             const v = appData.vehicles[appData.activeVehicle];
+            const snap = captureUndoSnapshot();
             v.logs = v.logs.filter(l => l.id !== logId);
             saveData();
             closeModal('modal-log-action');
-            showToast('Catatan log berhasil dihapus!');
+            offerUndo('Catatan dihapus', snap);
+        }
+
+        function viewLogReceipt(logId) {
+            const v = appData.vehicles[appData.activeVehicle];
+            const log = (v.logs || []).find(l => l.id === logId);
+            if (log) viewImageModal(log.receipt, log.title);
         }
 
         function renderRecentLogs() {
@@ -1363,7 +1777,7 @@
                 return;
             }
 
-            const recent = [...v.logs].reverse().slice(0, 3);
+            const recent = sortedLogs(v).slice(0, 3);
             container.innerHTML = recent.map(log => `
                 <div class="p-3 flex items-center justify-between hover:bg-slate-800/50 transition">
                     <div class="flex items-center gap-3">
@@ -1372,18 +1786,18 @@
                         </div>
                         <div>
                             <div class="font-bold text-xs text-slate-200 flex items-center gap-1.5">
-                                ${log.title}
-                                ${log.receipt ? `<button onclick="viewImageModal('${log.receipt}', '${log.title}')" class="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><i class="fas fa-receipt"></i> Struk</button>` : ''}
+                                ${esc(log.title)}
+                                ${log.receipt ? `<button onclick="viewLogReceipt(${log.id})" class="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><i class="fas fa-receipt"></i> Struk</button>` : ''}
                             </div>
                             <div class="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
-                                <span>${log.date}</span>
-                                ${log.km ? `<span>• ${log.km.toLocaleString('id-ID')} KM</span>` : ''}
+                                <span>${esc(log.date)}</span>
+                                ${log.km ? `<span>• ${Number(log.km).toLocaleString('id-ID')} KM</span>` : ''}
                             </div>
                         </div>
                     </div>
                     <div class="text-right">
-                        <span class="font-bold text-xs text-slate-200">Rp ${log.cost.toLocaleString('id-ID')}</span>
-                        <span class="block text-[9px] text-slate-400">${log.category}</span>
+                        <span class="font-bold text-xs text-slate-200">Rp ${Number(log.cost || 0).toLocaleString('id-ID')}</span>
+                        <span class="block text-[9px] text-slate-400">${esc(log.category)}</span>
                     </div>
                 </div>
             `).join('');
@@ -1398,7 +1812,7 @@
                 return;
             }
 
-            const sorted = [...v.logs].reverse();
+            const sorted = sortedLogs(v);
             container.innerHTML = sorted.map(log => `
                 <div class="bg-slate-900 p-3.5 rounded-2xl border border-slate-800 shadow-sm flex items-start justify-between gap-3 text-xs cursor-pointer select-none"
                      onmousedown="startLogHold(${log.id})" onmouseup="endLogHold()" onmouseleave="endLogHold()"
@@ -1408,51 +1822,77 @@
                             ${getCategoryIcon(log.category)}
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-200">${log.title}</h4>
-                            <div class="text-[11px] text-slate-400 mt-0.5">${log.notes || 'Tanpa catatan tambahan'}</div>
+                            <h4 class="font-bold text-slate-200">${esc(log.title)}</h4>
+                            <div class="text-[11px] text-slate-400 mt-0.5">${esc(log.notes) || 'Tanpa catatan tambahan'}</div>
                             <div class="flex items-center gap-3 mt-1.5 text-[10px] text-slate-500">
-                                <span><i class="far fa-calendar-alt"></i> ${log.date}</span>
-                                ${log.km ? `<span><i class="fas fa-tachometer-alt"></i> ${log.km.toLocaleString('id-ID')} KM</span>` : ''}
+                                <span><i class="far fa-calendar-alt"></i> ${esc(log.date)}</span>
+                                ${log.km ? `<span><i class="fas fa-tachometer-alt"></i> ${Number(log.km).toLocaleString('id-ID')} KM</span>` : ''}
                             </div>
                             ${log.receipt ? `
-                                <button onclick="event.stopPropagation(); viewImageModal('${log.receipt}', '${log.title}')" class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] font-semibold rounded-lg border border-amber-500/20 hover:bg-amber-500/20">
+                                <button onclick="event.stopPropagation(); viewLogReceipt(${log.id})" class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 text-amber-400 text-[10px] font-semibold rounded-lg border border-amber-500/20 hover:bg-amber-500/20">
                                     <i class="fas fa-image"></i> Lihat Struk Foto
                                 </button>
                             ` : ''}
                         </div>
                     </div>
                     <div class="text-right shrink-0">
-                        <span class="font-bold text-sm text-slate-100 block">Rp ${log.cost.toLocaleString('id-ID')}</span>
-                        <span class="inline-block mt-1 text-[9px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded-full border border-slate-800">${log.category}</span>
+                        <span class="font-bold text-sm text-slate-100 block">Rp ${Number(log.cost || 0).toLocaleString('id-ID')}</span>
+                        <span class="inline-block mt-1 text-[9px] bg-slate-950 text-slate-400 px-2 py-0.5 rounded-full border border-slate-800">${esc(log.category)}</span>
                     </div>
                 </div>
             `).join('');
         }
 
         // Export and Import JSON Data Logic
-        function exportDataJSON() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+        async function exportDataJSON() {
+            const backup = await buildBackupData();
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
             const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", `autolog_backup_${new Date().toISOString().split('T')[0]}.json`);
+            downloadAnchor.setAttribute("href", url);
+            downloadAnchor.setAttribute("download", `autolog_backup_${todayStr()}.json`);
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+            markBackupDone();
             showToast('Data berhasil diekspor ke JSON!');
         }
 
+        // Bagikan backup lewat menu share bawaan perangkat (mis. Simpan ke Google Drive).
+        // Jika share file tidak didukung, otomatis fallback ke unduhan JSON biasa.
+        async function shareBackupJSON() {
+            const fileName = `autolog_backup_${todayStr()}.json`;
+            try {
+                const backup = await buildBackupData();
+                const file = new File([JSON.stringify(backup, null, 2)], fileName, { type: 'application/json' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: 'Backup AutoLog', text: 'Backup data AutoLog & MotorLog' });
+                    markBackupDone();
+                    showToast('Backup berhasil dibagikan!');
+                    return;
+                }
+            } catch (err) {
+                if (err && err.name === 'AbortError') return; // pengguna menutup menu share
+            }
+            exportDataJSON();
+        }
+
         function importDataJSON(e) {
-            const file = e.target.files[0];
+            const input = e.target;
+            const file = input.files[0];
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = async function(event) {
                 try {
                     const parsed = JSON.parse(event.target.result);
                     if (parsed && parsed.vehicles) {
+                        const undoSnap = captureUndoSnapshot();
+                        await restoreReceiptsFromBackup(parsed);
                         appData = parsed;
                         saveData();
-                        showToast('Data JSON berhasil dipulihkan!');
+                        offerUndo('Data JSON berhasil dipulihkan', undoSnap);
                     } else {
                         alert('Format file JSON tidak valid untuk aplikasi ini.');
                     }
@@ -1461,12 +1901,13 @@
                 }
             };
             reader.readAsText(file);
+            input.value = '';
         }
 
         // Helpers & UI Triggers
         function openServiceModal(preselectPartKey) {
             const v = appData.vehicles[appData.activeVehicle];
-            document.getElementById('serviceDateInput').value = new Date().toISOString().split('T')[0];
+            document.getElementById('serviceDateInput').value = todayStr();
             document.getElementById('serviceOdoInput').value = v.odometer;
 
             if (preselectPartKey) {
@@ -1518,13 +1959,11 @@
             const today = new Date();
 
             if (v.taxDates) {
-                const taxDate = new Date(v.taxDates.annual);
-                const taxDays = Math.ceil((taxDate - today) / (1000 * 60 * 60 * 24));
+                const taxDays = daysUntil(v.taxDates.annual);
                 document.getElementById('taxDateDisplay').innerText = formatDateIndo(v.taxDates.annual);
                 document.getElementById('taxBadge').innerText = `${taxDays} Hari`;
 
-                const stnkDate = new Date(v.taxDates.fiveYear);
-                const stnkDays = Math.ceil((stnkDate - today) / (1000 * 60 * 60 * 24));
+                const stnkDays = daysUntil(v.taxDates.fiveYear);
                 document.getElementById('stnkDateDisplay').innerText = formatDateIndo(v.taxDates.fiveYear);
                 document.getElementById('stnkBadge').innerText = `${stnkDays} Hari`;
             }
@@ -1535,8 +1974,7 @@
             const simNum = appData.simData?.number || '----';
 
             if (simExp) {
-                const simDateObj = new Date(simExp);
-                const simDays = Math.ceil((simDateObj - today) / (1000 * 60 * 60 * 24));
+                const simDays = daysUntil(simExp);
                 document.getElementById('simDateDisplay').innerText = formatDateIndo(simExp);
                 document.getElementById('simTypeDisplay').innerText = simType;
                 
@@ -1564,7 +2002,7 @@
             document.getElementById('simTypeInput').value = appData.simData.type || 'C';
             document.getElementById('simNumberInput').value = appData.simData.number || '';
             document.getElementById('simIssueDateInput').value = appData.simData.issueDate || '';
-            document.getElementById('simDateInput').value = appData.simData.expiryDate || appData.simDate || new Date().toISOString().split('T')[0];
+            document.getElementById('simDateInput').value = appData.simData.expiryDate || appData.simDate || todayStr();
 
             document.getElementById('simModal').classList.remove('hidden');
             document.getElementById('simModal').classList.add('flex');
@@ -1640,6 +2078,7 @@
 
         function removeReceiptPhoto(e) {
             if (e) e.stopPropagation();
+            editReceiptRef = '';
             clearReceiptPhoto();
         }
 
@@ -1651,34 +2090,92 @@
             document.getElementById('receipt-upload-placeholder').classList.remove('hidden');
         }
 
-        function saveGeneralLog(e) {
+        // ===== Tambah / edit catatan (form yang sama) =====
+        let editingLogId = null;     // null = catatan baru
+        let editReceiptRef = '';     // struk yang sedang melekat pada catatan yang diedit
+
+        function resetLogFormState() {
+            editingLogId = null;
+            editReceiptRef = '';
+            document.getElementById('form-log').reset();
+            clearReceiptPhoto();
+        }
+
+        function setLogModalMode(isEdit) {
+            document.getElementById('log-modal-title').innerText = isEdit ? 'Edit Catatan' : 'Catat Transaksi Pengeluaran';
+            document.getElementById('log-submit-btn').innerText = isEdit ? 'Simpan Perubahan' : 'Simpan Catatan Log';
+        }
+
+        function openNewLogModal() {
+            resetLogFormState();
+            document.getElementById('log-date').value = todayStr();
+            setLogModalMode(false);
+            toggleReceiptUploadField();
+            openModal('modal-log');
+        }
+
+        async function openEditLogModal(logId) {
+            const v = appData.vehicles[appData.activeVehicle];
+            const log = (v.logs || []).find(l => l.id === logId);
+            if (!log) return;
+
+            resetLogFormState();
+            editingLogId = log.id;
+            document.getElementById('log-category').value = log.category;
+            document.getElementById('log-title').value = log.title || '';
+            document.getElementById('log-cost').value = log.cost || 0;
+            document.getElementById('log-km').value = log.km || '';
+            document.getElementById('log-date').value = log.date || todayStr();
+            document.getElementById('log-notes').value = log.notes || '';
+            setLogModalMode(true);
+            toggleReceiptUploadField();
+
+            editReceiptRef = log.receipt || '';
+            if (editReceiptRef) {
+                const url = await receiptGetDataUrl(editReceiptRef);
+                if (url && editingLogId === log.id) {
+                    document.getElementById('receipt-preview-img').src = url;
+                    document.getElementById('receipt-preview-box').classList.remove('hidden');
+                    document.getElementById('receipt-upload-placeholder').classList.add('hidden');
+                }
+            }
+            openModal('modal-log');
+        }
+
+        async function saveGeneralLog(e) {
             e.preventDefault();
             const category = document.getElementById('log-category').value;
             const title = document.getElementById('log-title').value;
             const cost = parseInt(document.getElementById('log-cost').value) || 0;
             const km = parseInt(document.getElementById('log-km').value) || null;
             const notes = document.getElementById('log-notes').value;
+            const date = document.getElementById('log-date').value || todayStr();
+            const wantsReceipt = (category === 'BBM' || category === 'ParkirTol');
 
             const v = appData.vehicles[appData.activeVehicle];
-            const newLog = {
-                id: Date.now(),
-                category,
-                title,
-                cost,
-                km,
-                date: new Date().toISOString().split('T')[0],
-                notes,
-                receipt: (category === 'BBM' || category === 'ParkirTol') ? currentReceiptData : ''
-            };
+            const existing = editingLogId != null ? v.logs.find(l => l.id === editingLogId) : null;
 
-            v.logs.push(newLog);
+            let receiptRef = '';
+            if (wantsReceipt) {
+                if (currentReceiptData) receiptRef = await receiptPut(currentReceiptData);   // foto baru
+                else if (existing) receiptRef = editReceiptRef;                              // pertahankan / sudah dihapus ('')
+            }
+            if (existing && existing.receipt && existing.receipt !== receiptRef) receiptDelete(existing.receipt);
+
+            if (existing) {
+                Object.assign(existing, { category, title, cost, km, date, notes, receipt: receiptRef });
+            } else {
+                v.logs.push({ id: Date.now(), category, title, cost, km, date, notes, receipt: receiptRef });
+            }
             if (km && km > v.odometer) v.odometer = km;
 
+            editingLogId = null;
+            editReceiptRef = '';
             saveData();
             closeModal('modal-log');
             document.getElementById('form-log').reset();
             clearReceiptPhoto();
-            showToast('Transaksi berhasil disimpan!');
+            showToast(existing ? 'Catatan berhasil diperbarui!' : 'Transaksi berhasil disimpan!');
         }
 
         function openModal(id) {
@@ -1715,7 +2212,7 @@
 
         function openBbmModal() {
             const v = appData.vehicles[appData.activeVehicle];
-            document.getElementById('bbmDateInput').value = new Date().toISOString().split('T')[0];
+            document.getElementById('bbmDateInput').value = todayStr();
             document.getElementById('bbmOdoInput').value = v.odometer;
             document.getElementById('bbmModal').classList.remove('hidden');
             document.getElementById('bbmModal').classList.add('flex');
@@ -1812,7 +2309,9 @@
             showToast('Tema warna kendaraan diubah!');
         }
 
-        function viewImageModal(imgUrl, title) {
+        async function viewImageModal(ref, title) {
+            const imgUrl = await receiptGetDataUrl(ref);
+            if (!imgUrl) { showToast('Foto struk tidak ditemukan'); return; }
             document.getElementById('modal-view-img').src = imgUrl;
             document.getElementById('modal-view-title').innerText = title || 'Struk Bukti Foto';
             openModal('modal-image-view');
@@ -1822,11 +2321,20 @@
             closeModal('modal-image-view');
         }
 
+        // Terapkan tema tersimpan (dipanggil di setiap renderApp, termasuk saat aplikasi dibuka)
+        function applyTheme() {
+            const dark = appData.darkMode !== false;
+            document.documentElement.classList.toggle('dark', dark);
+            const icon = document.getElementById('dark-mode-icon');
+            if (icon) icon.className = dark ? 'fas fa-sun' : 'fas fa-moon';
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', dark ? '#0f172a' : '#f1f5f9');
+        }
+
         function toggleDarkMode() {
-            appData.darkMode = !appData.darkMode;
-            document.documentElement.classList.toggle('dark', appData.darkMode);
-            document.getElementById('dark-mode-icon').className = appData.darkMode ? 'fas fa-sun' : 'fas fa-moon';
+            appData.darkMode = !(appData.darkMode !== false);
             saveData();
+            if (activeTab === 'analytics') renderAnalytics();   // warna teks grafik ikut tema
         }
 
         function saveBikeProfile() {
@@ -1837,9 +2345,17 @@
             showToast('Profil kendaraan diperbarui!');
         }
 
-        function resetData() {
+        async function resetData() {
             if (confirm('PERINGATAN: Seluruh data kendaraan dan log transaksi akan dihapus permanen! Yakin?')) {
-                localStorage.removeItem('mogtor_pro_unified_data');
+                localStorage.removeItem(STORAGE_KEY);
+                try { localStorage.removeItem(LAST_BACKUP_KEY); } catch (e) {}
+                try {
+                    if (receiptDbPromise) { (await receiptDbPromise).close(); receiptDbPromise = null; }
+                    await new Promise(function (resolve) {
+                        var q = indexedDB.deleteDatabase(RECEIPT_DB_NAME);
+                        q.onsuccess = q.onerror = q.onblocked = function () { resolve(); };
+                    });
+                } catch (e) { /* lanjut reload */ }
                 location.reload();
             }
         }
@@ -1855,7 +2371,8 @@
 
         function formatDateIndo(dateStr) {
             if (!dateStr) return '-- --- ----';
-            const d = new Date(dateStr);
+            const d = parseLocalDate(dateStr);
+            if (isNaN(d)) return '-- --- ----';
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
             return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
         }
@@ -1870,44 +2387,71 @@
             }
         }
 
-        // Render Analytics Charts
+        // Render Analytics Charts (semua angka dihitung dari catatan asli)
         function renderAnalytics() {
             const v = appData.vehicles[appData.activeVehicle];
             if (!v) return;
 
-            document.getElementById('analyticTotalKm').innerText = `${v.odometer.toLocaleString('id-ID')} KM`;
+            const logs = v.logs || [];
+            const bbm = v.bbmLogs || [];
+            const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'];
+            const monthKey = (d) => String(d || '').slice(0, 7);          // "YYYY-MM"
+            const now = new Date();
+            const isDark = appData.darkMode !== false;
+            const tickColor = isDark ? '#94a3b8' : '#475569';
+            const legendColor = isDark ? '#cbd5e1' : '#334155';
 
-            // Calculate Monthly Average
-            const totalExpense = v.logs.reduce((acc, curr) => acc + (curr.cost || 0), 0);
-            document.getElementById('analyticMonthlyAvg').innerText = `Rp ${(totalExpense / 3).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
+            // Jarak tercatat = odometer sekarang - KM paling awal yang pernah dicatat
+            const knownKms = [...logs.map(l => l.km), ...bbm.map(b => b.odo)].filter(n => Number.isFinite(n) && n > 0);
+            const trackedKm = knownKms.length ? Math.max(0, v.odometer - Math.min(...knownKms)) : 0;
+            document.getElementById('analyticTotalKm').innerText = `${trackedKm.toLocaleString('id-ID')} KM`;
 
-            // BBM Efficiency Stats
-            let totalLiter = 0;
-            let totalBbmCost = 0;
-            v.bbmLogs.forEach(b => { totalLiter += b.liter; totalBbmCost += b.cost; });
+            // Rata-rata biaya per bulan = total biaya / jumlah bulan sejak catatan pertama (minimal 1)
+            const totalExpense = logs.reduce((acc, l) => acc + (l.cost || 0), 0);
+            const datedKeys = logs.map(l => monthKey(l.date)).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
+            let monthSpan = 1;
+            if (datedKeys.length) {
+                const [ey, em] = datedKeys[0].split('-').map(Number);
+                monthSpan = Math.max(1, (now.getFullYear() - ey) * 12 + (now.getMonth() + 1 - em) + 1);
+            }
+            document.getElementById('analyticMonthlyAvg').innerText = `Rp ${(totalExpense / monthSpan).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
 
+            // Efisiensi BBM (metode tangki penuh): jarak antar-pengisian / liter yang diisi sesudahnya
+            const fills = bbm.filter(b => Number.isFinite(b.odo) && b.odo > 0 && b.liter > 0).sort((a, b) => a.odo - b.odo);
+            const totalLiter = bbm.reduce((acc, b) => acc + (b.liter || 0), 0);
             document.getElementById('totalFuelLiter').innerText = `${totalLiter.toFixed(1)} Liter`;
 
-            const costPerKm = v.odometer > 0 ? (totalExpense / v.odometer).toFixed(0) : 0;
-            document.getElementById('costPerKmDisplay').innerText = `Rp ${costPerKm} / KM`;
+            const segLabels = [];
+            const segData = [];
+            for (let i = 1; i < fills.length; i++) {
+                const dist = fills[i].odo - fills[i - 1].odo;
+                if (dist > 0) {
+                    segLabels.push(String(fills[i].date || '').slice(5));
+                    segData.push(+(dist / fills[i].liter).toFixed(1));
+                }
+            }
+            let avgFuel = null;
+            if (fills.length >= 2) {
+                const dist = fills[fills.length - 1].odo - fills[0].odo;
+                const liters = fills.slice(1).reduce((acc, b) => acc + b.liter, 0);
+                if (dist > 0 && liters > 0) avgFuel = dist / liters;
+            }
+            document.getElementById('analyticsAvgFuel').innerText = avgFuel ? `${avgFuel.toFixed(1)} KM/L` : '- KM/L';
 
-            const avgFuelEfficiency = totalLiter > 0 ? (v.odometer / totalLiter).toFixed(1) : '38.5';
-            document.getElementById('analyticsAvgFuel').innerText = `${avgFuelEfficiency} KM/L`;
+            document.getElementById('costPerKmDisplay').innerText = trackedKm > 0
+                ? `Rp ${Math.round(totalExpense / trackedKm).toLocaleString('id-ID')} / KM`
+                : '- / KM';
 
-            // 1. Fuel Trend Chart
+            // 1. Grafik efisiensi per pengisian (KM/L)
             const ctxFuel = document.getElementById('fuelChart').getContext('2d');
             if (fuelChartInstance) fuelChartInstance.destroy();
-
-            const bbmLabels = v.bbmLogs.slice(0, 6).reverse().map(b => b.date.slice(5));
-            const bbmData = v.bbmLogs.slice(0, 6).reverse().map(b => b.liter);
-
             fuelChartInstance = new Chart(ctxFuel, {
                 type: 'line',
                 data: {
-                    labels: bbmLabels.length ? bbmLabels : ['Okt 02', 'Okt 15'],
+                    labels: segLabels.slice(-6),
                     datasets: [{
-                        label: 'Liter Terisi',
-                        data: bbmData.length ? bbmData : [4.0, 4.2],
+                        label: 'KM/L',
+                        data: segData.slice(-6),
                         borderColor: '#f59e0b',
                         backgroundColor: 'rgba(245, 158, 11, 0.1)',
                         fill: true,
@@ -1918,18 +2462,18 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: { y: { display: false }, x: { ticks: { color: '#94a3b8', font: { size: 9 } } } }
+                    scales: { y: { display: false }, x: { ticks: { color: tickColor, font: { size: 9 } } } }
                 }
             });
 
-            // 2. Expense Category Doughnut Chart
+            // 2. Proporsi biaya per kategori
             const ctxExpense = document.getElementById('expenseCategoryChart').getContext('2d');
             if (expenseChartInstance) expenseChartInstance.destroy();
 
             const catMap = { BBM: 0, ParkirTol: 0, Servis: 0, Pajak: 0, Lainnya: 0 };
-            v.logs.forEach(l => {
-                if (catMap[l.category] !== undefined) catMap[l.category] += l.cost;
-                else catMap.Lainnya += l.cost;
+            logs.forEach(l => {
+                if (catMap[l.category] !== undefined) catMap[l.category] += (l.cost || 0);
+                else catMap.Lainnya += (l.cost || 0);
             });
 
             expenseChartInstance = new Chart(ctxExpense, {
@@ -1945,21 +2489,30 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 9 } } } }
+                    plugins: { legend: { position: 'bottom', labels: { color: legendColor, font: { size: 9 } } } }
                 }
             });
 
-            // 3. Monthly Expense Bar Chart
+            // 3. Tren pengeluaran 6 bulan terakhir (dari catatan asli)
             const ctxMonthly = document.getElementById('monthlyTrendChart').getContext('2d');
             if (monthlyChartInstance) monthlyChartInstance.destroy();
+
+            const trendLabels = [];
+            const trendData = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                trendLabels.push(MONTHS[d.getMonth()]);
+                trendData.push(logs.filter(l => monthKey(l.date) === key).reduce((acc, l) => acc + (l.cost || 0), 0));
+            }
 
             monthlyChartInstance = new Chart(ctxMonthly, {
                 type: 'bar',
                 data: {
-                    labels: ['Agt', 'Sep', 'Okt'],
+                    labels: trendLabels,
                     datasets: [{
                         label: 'Pengeluaran (Rp)',
-                        data: [110000, 85000, 152000],
+                        data: trendData,
                         backgroundColor: '#3b82f6',
                         borderRadius: 6
                     }]
@@ -1968,21 +2521,35 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: { y: { display: false }, x: { ticks: { color: '#94a3b8', font: { size: 9 } } } }
+                    scales: { y: { display: false }, x: { ticks: { color: tickColor, font: { size: 9 } } } }
                 }
             });
         }
 
         // Initialize App on Page Load
+        // Pintasan ikon aplikasi (manifest shortcuts) membuka halaman dengan ?aksi=...
+        function handleShortcutAction() {
+            try {
+                const act = new URLSearchParams(location.search).get('aksi');
+                if (!act) return;
+                if (act === 'bbm') openBbmModal();
+                else if (act === 'biaya') openNewLogModal();
+                else if (act === 'odometer') openOdoModal();
+                history.replaceState(null, '', location.pathname + location.hash);    // bersihkan URL agar reload tidak membuka ulang
+            } catch (e) { /* abaikan */ }
+        }
+
         window.onload = function() {
             renderApp();
+            migrateInlineReceipts();
+            handleShortcutAction();
         };
     </script>
 
     <!-- ===== PWA: banner "Pasang Aplikasi" (ditambahkan) ===== -->
     <script>
     (function () {
-        var KEY = 'motorlog_pro_pwa_install_dismissed_at'; // key khusus aplikasi ini
+        var KEY = 'motorlog_pro:' + location.pathname.replace(/[^\/]*$/, '') + ':install_dismissed_at'; // terikat path repo
         var WEEK = 7 * 24 * 60 * 60 * 1000;
         var deferredPrompt = null;
 

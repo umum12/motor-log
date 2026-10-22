@@ -5,8 +5,10 @@
  *  - Resource CDN (Tailwind, FontAwesome, Chart.js, Google Fonts) TIDAK disentuh.
  *  - Network-first: HTML/resource lokal selalu coba jaringan dulu, cache hanya fallback.
  */
-const CACHE_PREFIX = 'motorlog-pro-shell-';
-const CACHE_VERSION = 'v1';                       // naikkan saat mengubah daftar SHELL
+// Cache Storage dipakai bersama seluruh repo di origin github.io -> namespace diikat ke path scope repo ini
+const SCOPE_PATH = new URL(self.registration.scope).pathname;   // mis. "/nama-repo/"
+const CACHE_PREFIX = 'motorlog-pro-shell:' + SCOPE_PATH + ':';
+const CACHE_VERSION = 'v2';                       // naikkan saat mengubah daftar SHELL
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 
 // Path relatif terhadap lokasi sw.js -> otomatis benar di /nama-repo/
