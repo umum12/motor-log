@@ -77,146 +77,18 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex justify-center items-center p-0 sm:p-4 transition-colors duration-300">
 
-    <!-- ===== Trial Gate (terpisah dari data Motor-Log: key localStorage '...:trial:*') ===== -->
-    <script>
-    (function () {
-        // --- Pengaturan ---
-        var TRIAL_MS = 60 * 1000;                 // trial gratis 60 detik
-        var COOLDOWN_MS = 12 * 60 * 60 * 1000;    // cooldown 12 jam sejak trial habis
-        // SHA-256 dari kode akses (huruf besar, tanpa spasi). Ganti dengan hash kode Anda sendiri.
-        var ACCESS_CODE_HASHES = ['74ece0eb7edb197b6c3021b46f43de905594347bacc0acd7d02fd6345207ea3b'];
-
-        var PREFIX = 'motorlog_pro:' + location.pathname.replace(/[^\/]*$/, '') + ':trial:';   // terikat path repo
-        var K_END = PREFIX + 'ends_at', K_SEEN = PREFIX + 'last_seen', K_UNLOCK = PREFIX + 'unlocked';
-        var mem = {};                              // cadangan bila localStorage diblokir
-        function get(k) { try { var v = localStorage.getItem(k); return v === null ? (mem[k] === undefined ? null : mem[k]) : v; } catch (e) { return mem[k] === undefined ? null : mem[k]; } }
-        function set(k, v) { mem[k] = String(v); try { localStorage.setItem(k, String(v)); } catch (e) {} }
-        function num(k) { var n = parseInt(get(k), 10); return isFinite(n) && n > 0 ? n : 0; }
-
-        if (get(K_UNLOCK) === '1') return;         // sudah dibuka dengan kode akses
-
-        // Waktu efektif tidak pernah mundur (menahan trik memundurkan jam perangkat)
-        function now() {
-            var t = Math.max(Date.now(), num(K_SEEN));
-            set(K_SEEN, t);
-            return t;
-        }
-        // Pertama kali dibuka: trial langsung berjalan
-        if (!num(K_END)) set(K_END, now() + TRIAL_MS);
-
-        var style = document.createElement('style');
-        style.textContent =
-            'body.tg-locked > *:not(#tg-root){visibility:hidden!important}' +
-            '#tg-root{font-family:inherit}' +
-            '#tg-count{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}' +
-            '#tg-count .n{font-size:min(46vw,46vh);font-weight:900;line-height:1;color:#f59e0b;opacity:.28;text-shadow:0 0 40px rgba(0,0,0,.5);font-variant-numeric:tabular-nums}' +
-            '#tg-count .n.low{color:#ef4444;opacity:.5}' +
-            '#tg-count .l{font-size:12px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#cbd5e1;opacity:.7;margin-top:4px}' +
-            '#tg-lock{position:fixed;inset:0;z-index:2147483600;background:#020617;color:#f1f5f9;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;overflow:auto}' +
-            '#tg-lock .big{font-size:min(17vw,96px);font-weight:900;line-height:1.05;color:#f59e0b;font-variant-numeric:tabular-nums;letter-spacing:.02em}' +
-            '#tg-lock .sub{font-size:12px;color:#94a3b8;margin:6px 0 22px}' +
-            '#tg-lock h1{font-size:18px;font-weight:800;margin:0 0 4px}' +
-            '#tg-lock form{width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px}' +
-            '#tg-lock input{width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:1px solid #334155;background:#0f172a;color:#f1f5f9;font-size:16px;text-align:center;letter-spacing:.12em;text-transform:uppercase}' +
-            '#tg-lock input:focus{outline:none;border-color:#f59e0b}' +
-            '#tg-lock button{padding:12px;border-radius:12px;border:0;background:#f59e0b;color:#020617;font-weight:800;font-size:14px;cursor:pointer}' +
-            '#tg-lock button:disabled{opacity:.5}' +
-            '#tg-lock .err{min-height:16px;font-size:12px;color:#f87171}';
-        document.head.appendChild(style);
-
-        var root = document.createElement('div');
-        root.id = 'tg-root';
-        root.innerHTML =
-            '<div id="tg-count" aria-live="off"><div class="n" id="tg-n">60</div><div class="l">Trial gratis</div></div>' +
-            '<div id="tg-lock" role="dialog" aria-modal="true" aria-label="Aplikasi terkunci">' +
-              '<h1>Masa trial habis</h1>' +
-              '<div class="sub" id="tg-sub">Masukkan kode akses untuk membuka aplikasi.</div>' +
-              '<form id="tg-form" autocomplete="off"><input id="tg-code" type="text" placeholder="KODE AKSES" autocapitalize="characters" spellcheck="false" aria-label="Kode akses"><div class="err" id="tg-err" role="alert"></div><button type="submit" id="tg-btn">Buka Aplikasi</button></form>' +
-              '<div style="margin-top:28px"><div class="sub" style="margin:0 0 4px" id="tg-cd-label">Trial 60 detik tersedia lagi dalam</div><div class="big" id="tg-cd">12:00:00</div>' +
-              '<button type="button" id="tg-again" style="display:none;margin-top:14px;padding:12px 22px">Mulai Trial 60 Detik</button></div>' +
-            '</div>';
-        document.body.appendChild(root);
-
-        var $ = function (id) { return document.getElementById(id); };
-        var timer = null, unlocked = false;
-        function pad(n) { return (n < 10 ? '0' : '') + n; }
-        function hms(ms) {
-            var s = Math.max(0, Math.ceil(ms / 1000));
-            return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60);
-        }
-        function tick() {
-            if (unlocked) return;
-            var t = now(), end = num(K_END);
-            if (t < end) {                                   // trial berjalan
-                document.body.classList.remove('tg-locked');
-                $('tg-lock').style.display = 'none';
-                $('tg-count').style.display = 'flex';
-                var left = Math.ceil((end - t) / 1000);
-                $('tg-n').textContent = left;
-                $('tg-n').className = 'n' + (left <= 10 ? ' low' : '');
-                return;
-            }
-            // terkunci
-            var wasLocked = document.body.classList.contains('tg-locked');
-            document.body.classList.add('tg-locked');
-            $('tg-count').style.display = 'none';
-            $('tg-lock').style.display = 'flex';
-            var cd = end + COOLDOWN_MS - t;
-            if (cd > 0) {
-                $('tg-cd').textContent = hms(cd);
-                $('tg-cd-label').textContent = 'Trial 60 detik tersedia lagi dalam';
-                $('tg-cd').style.display = '';
-                $('tg-again').style.display = 'none';
-            } else {
-                $('tg-cd').style.display = 'none';
-                $('tg-cd-label').textContent = 'Trial 60 detik sudah tersedia kembali';
-                $('tg-again').style.display = '';
-            }
-            if (!wasLocked && document.activeElement && document.activeElement !== document.body) { try { document.activeElement.blur(); } catch (e) {} }
-        }
-        function startTimer() { if (!timer) timer = setInterval(tick, 250); }
-
-        $('tg-again').onclick = function () {
-            if (now() < num(K_END) + COOLDOWN_MS) return;
-            set(K_END, now() + TRIAL_MS);
-            tick();
-        };
-        function sha256Hex(text) {
-            if (!(window.crypto && crypto.subtle)) return Promise.reject(new Error('nocrypto'));
-            return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (buf) {
-                return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-            });
-        }
-        $('tg-form').onsubmit = function (ev) {
-            ev.preventDefault();
-            var code = $('tg-code').value.replace(/\s+/g, '').toUpperCase();
-            var err = $('tg-err');
-            if (!code) { err.textContent = 'Masukkan kode akses.'; return; }
-            $('tg-btn').disabled = true;
-            sha256Hex(code).then(function (h) {
-                if (ACCESS_CODE_HASHES.indexOf(h) !== -1) {
-                    set(K_UNLOCK, '1');
-                    unlocked = true;
-                    clearInterval(timer);
-                    document.body.classList.remove('tg-locked');
-                    root.parentNode && root.parentNode.removeChild(root);
-                } else {
-                    err.textContent = 'Kode akses salah.';
-                    $('tg-code').select();
-                }
-            }).catch(function () {
-                err.textContent = 'Peramban tidak mendukung verifikasi kode (butuh HTTPS).';
-            }).then(function () { var bt = $('tg-btn'); if (bt) bt.disabled = false; });
-        };
-        document.addEventListener('visibilitychange', tick);
-        window.addEventListener('pageshow', tick);
-        tick();
-        startTimer();
-    })();
-    </script>
 
     <!-- Mobile Device Container Frame -->
     <div id="appContainer" class="w-full max-w-md h-[100vh] sm:h-[850px] bg-slate-950 text-slate-100 sm:rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden border-0 sm:border-[8px] border-slate-800 transition-colors duration-300">
+
+        <!-- Banner kode akses (tampil di semua menu selama kode belum dimasukkan) -->
+        <div id="access-banner" class="hidden shrink-0 z-30 bg-amber-500/10 border-b border-amber-500/30 px-3 py-2 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+                <p class="text-[11px] font-bold text-amber-400 leading-snug"><i class="fas fa-lock mr-1"></i>Masukkan kode akses untuk membuka seluruh fitur aplikasi.</p>
+                <p class="text-[10px] text-slate-400 leading-snug">Tanpa kode, data tidak tersimpan dan direset tiap pukul 00.00.</p>
+            </div>
+            <button onclick="openAccessModal()" class="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-[11px] font-bold btn-touch">Masukkan Kode</button>
+        </div>
 
         <!-- Header Dynamic Vehicle Switcher -->
         <header class="bg-slate-900/95 dark:bg-slate-900/95 border-b border-slate-800/80 px-3 py-2.5 flex items-center justify-between z-20 shrink-0">
@@ -607,17 +479,18 @@
                 </div>
 
                 <!-- Backup & Restore Data JSON Section -->
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
+                <div id="backup-section" class="bg-slate-900 border border-slate-800 p-4 rounded-2xl space-y-3">
                     <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2">
                         <i class="fas fa-file-export text-blue-400"></i> Backup & Restore Data JSON
                     </h4>
                     <p class="text-[11px] text-slate-400">Ekspor data ke file JSON untuk cadangan atau impor ke perangkat lain.</p>
+                    <p id="backup-lock-note" class="hidden text-[11px] text-amber-400 font-semibold"><i class="fas fa-lock mr-1"></i>Terkunci: masukkan kode akses untuk memakai backup & restore.</p>
                     <p id="lastBackupInfo" class="text-[11px] text-amber-400 font-medium"></p>
                     <div class="grid grid-cols-2 gap-2 pt-1">
                         <button onclick="exportDataJSON()" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5">
                             <i class="fas fa-download text-amber-400"></i> Ekspor JSON
                         </button>
-                        <label class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5 cursor-pointer">
+                        <label onclick="if(!requireAccess('Impor JSON'))event.preventDefault()" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold rounded-xl text-xs btn-touch flex items-center justify-center gap-1.5 cursor-pointer">
                             <i class="fas fa-upload text-emerald-400"></i> Impor JSON
                             <input type="file" accept=".json" onchange="importDataJSON(event)" class="hidden">
                         </label>
@@ -1044,6 +917,21 @@
         </div>
 
         <!-- MODAL 10: COLOR PALETTE PICKER -->
+        <!-- Modal Kode Akses -->
+        <div id="modal-access" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-sm text-slate-100 flex items-center gap-2"><i class="fas fa-key text-amber-400"></i> Kode Akses</h3>
+                    <button type="button" onclick="closeModal('modal-access')" class="text-slate-400 hover:text-slate-200 btn-touch"><i class="fas fa-xmark"></i></button>
+                </div>
+                <form onsubmit="submitAccessCode(event)" autocomplete="off" class="space-y-3 text-xs">
+                    <input id="access-input" type="text" placeholder="MLS-XXXXX-XXXXX" autocapitalize="characters" spellcheck="false" aria-label="Kode akses" class="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-center text-sm tracking-widest uppercase text-slate-100 focus:outline-none focus:border-amber-500">
+                    <p id="access-error" class="min-h-[16px] text-[11px] text-red-400" role="alert"></p>
+                    <button id="access-btn" type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl btn-touch disabled:opacity-50">Buka Semua Fitur</button>
+                </form>
+            </div>
+        </div>
+
         <div id="modal-theme" class="fixed sm:absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
             <div class="bg-slate-900 border border-slate-800 w-full max-w-xs rounded-3xl p-5 shadow-2xl space-y-3">
                 <div class="flex justify-between items-center">
@@ -1181,6 +1069,107 @@
         const STORAGE_KEY = 'motorlog_pro:' + APP_BASE_PATH + ':data';
         const STORAGE_MIGRATED_FLAG = 'motorlog_pro:' + APP_BASE_PATH + ':migrated';
         const LEGACY_STORAGE_KEY = 'mogtor_pro_unified_data';                       // key lama (tidak dihapus)
+        // ===== Kode akses (menggantikan trial) =====
+        // Sebelum kode valid: data hanya di memori (tidak disimpan), backup/restore JSON terkunci, dan data direset tiap pukul 00.00.
+        const DEFAULT_DATA_JSON = JSON.stringify(defaultData);       // salinan asli untuk reset (defaultData bisa berubah saat dipakai)
+        const ACCESS_KEY = 'motorlog_pro:' + APP_BASE_PATH + ':access';
+        const ACCESS_USED_KEY = 'motorlog_pro:' + APP_BASE_PATH + ':access_used';
+        const FREE_DAY_KEY = 'motorlog_pro:' + APP_BASE_PATH + ':free_day';
+        // SHA-256 dari kode (huruf besar, tanpa spasi). Kode aslinya tidak ada di berkas ini.
+        const ONE_TIME_CODE_HASHES = ["585408dfa0caa00cac5e4cd58164cfe2fe6175cbc9e94ed9a87f95bdda946804", "265071320179f50b034121de95cc065101a780981e128e5dba61d5cc2288d3fd", "f0615aa7bc318ca16893505c74deb327817411a31d15e43215fdcc2ef62a7afd", "facff617514b0d1f671469357e611ff06c31dd4cdc75e69c99a6d026e4ac28b0", "450b3d5d2416d6c7ac3da35ba3d33557fb65ce128d065f4847007df2b9a8e64e", "ac40e9db0267eb1874e59875748475c32770fdc2721e62dd30f7725ce29f2616", "bdc10bd86d4f5736f535cba8ed4ac5c8b10f4cc85909c45819bdd55da0dd1d11", "5b2822b6327ee8c70c6848506b12784fb5b3cc04256a857d689b2e21c7831a30", "36b2539f3773e79194c17827ce02af270bd700594a9546d05826c8ac2ef028ef", "6fb4db2a2c92038919534e0f62833bd82858505f2837ee06373d2f4c996617a4", "a6648e274a96186558f95cca4b29a84397a785f73f4a988635f6f542f75657ce", "73f9386c73fd10c157a12b70f8e01838a4d2958af38c9551a19e83c39c3b401b", "645452b5264ab63825f599f69942460881945621b7d556c3b63c900d689ab9e8", "6f889e6811b4d5e7635a9a642b9547195471309bfaeea02af19a9e83d126e979", "f3df5fd115ecac21fd91e828d0d3b6fe3d60a3bb0f233cc1920819f3fe42fb5b"];
+        const UNLIMITED_CODE_HASHES = ["4cbaa8124ae62e77ec1fd73f368482db0cd2436bf1972eb1774d3e72b92cb847", "6ebe73ee81d5a43a3e1a94f1a019f254b0a56e09a2ccd2b24afe971e96d8c8a5"];
+        let accessMemory = false;
+        function accessGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function accessSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+        function isUnlocked() { return accessMemory || accessGet(ACCESS_KEY) === '1'; }
+        (function removeLegacyTrialKeys() {          // sisa fitur trial lama
+            ['ends_at', 'last_seen', 'unlocked'].forEach(function (k) { try { localStorage.removeItem('motorlog_pro:' + APP_BASE_PATH + ':trial:' + k); } catch (e) {} });
+        })();
+        function ensureFreeDay() { if (!isUnlocked() && !accessGet(FREE_DAY_KEY)) accessSet(FREE_DAY_KEY, todayStr()); }
+        // Reset jatuh tempo bila sudah ganti hari (melewati pukul 00.00) sejak data hari terakhir
+        function dailyResetDue() { if (isUnlocked()) return false; var d = accessGet(FREE_DAY_KEY); return !!d && d !== todayStr(); }
+        function wipePersistedData() {
+            try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem('motorlog_pro:' + APP_BASE_PATH + ':last_backup_at'); } catch (e) {}
+            try { indexedDB.deleteDatabase('motorlog_pro:' + APP_BASE_PATH + ':receipts'); } catch (e) {}
+        }
+        // Dipanggil saat buka aplikasi, interaksi, kembali ke tab, berkala, dan di setiap saveData()
+        function checkDailyReset() {
+            if (!dailyResetDue()) return false;
+            if (pendingUndo) { clearTimeout(pendingUndo.timer); pendingUndo = null; hideUndoToast(); }
+            if (receiptDbPromise) { receiptDbPromise.then(function (db) { db.close(); }).catch(function () {}); receiptDbPromise = null; }
+            wipePersistedData();
+            appData = JSON.parse(DEFAULT_DATA_JSON);
+            accessSet(FREE_DAY_KEY, todayStr());
+            currentReceiptData = '';
+            notificationDismissed = false;
+            ['modal-add-vehicle', 'modal-add-part', 'modal-edit-part', 'modal-log-action', 'modal-log', 'modal-theme', 'modal-image-view', 'modal-access'].forEach(function (id) { if (document.getElementById(id)) closeModal(id); });
+            ['serviceModal', 'odoModal'].forEach(function (id) { var el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } });
+            renderApp();
+            showToast('Lewat pukul 00.00: data direset. Masukkan kode akses agar data tersimpan.');
+            return true;
+        }
+        // Dipakai di setiap fitur terkunci (validasi di fungsi, bukan hanya tampilan tombol)
+        function requireAccess(featureName) {
+            if (isUnlocked()) return true;
+            showToast('\uD83D\uDD12 ' + featureName + ' butuh kode akses');
+            return false;
+        }
+        function accessSha256(text) {
+            if (!(window.crypto && crypto.subtle)) return Promise.reject(new Error('nocrypto'));
+            return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (buf) {
+                return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+            });
+        }
+        function openAccessModal() {
+            document.getElementById('access-error').innerText = '';
+            document.getElementById('access-input').value = '';
+            openModal('modal-access');
+            setTimeout(function () { var i = document.getElementById('access-input'); if (i) i.focus(); }, 50);
+        }
+        async function submitAccessCode(ev) {
+            ev.preventDefault();
+            const err = document.getElementById('access-error'), btn = document.getElementById('access-btn');
+            const code = document.getElementById('access-input').value.replace(/\s+/g, '').toUpperCase();
+            if (!code) { err.innerText = 'Masukkan kode akses.'; return; }
+            btn.disabled = true;
+            try {
+                const h = await accessSha256(code);
+                let used = [];
+                try { used = JSON.parse(accessGet(ACCESS_USED_KEY) || '[]'); } catch (e) { used = []; }
+                if (UNLIMITED_CODE_HASHES.indexOf(h) !== -1) {
+                    unlockApp();
+                } else if (ONE_TIME_CODE_HASHES.indexOf(h) !== -1) {
+                    if (used.indexOf(h) !== -1) { err.innerText = 'Kode sekali pakai ini sudah pernah digunakan.'; }
+                    else { used.push(h); accessSet(ACCESS_USED_KEY, JSON.stringify(used)); unlockApp(); }
+                } else {
+                    err.innerText = 'Kode akses tidak valid.';
+                }
+            } catch (e) {
+                err.innerText = 'Peramban tidak mendukung verifikasi kode (butuh HTTPS).';
+            }
+            btn.disabled = false;
+        }
+        function unlockApp() {
+            accessMemory = true;
+            accessSet(ACCESS_KEY, '1');
+            closeModal('modal-access');
+            saveData();                       // data yang dibuat saat terkunci kini disimpan permanen
+            migrateInlineReceipts();          // foto struk sementara dipindah ke IndexedDB
+            showToast('Akses terbuka. Semua fitur aktif.');
+        }
+        function applyAccessUI() {
+            const locked = !isUnlocked();
+            const banner = document.getElementById('access-banner');
+            if (banner) banner.classList.toggle('hidden', !locked);
+            const sec = document.getElementById('backup-section');
+            if (sec) {
+                sec.classList.toggle('opacity-60', locked);
+                sec.querySelectorAll('button, label').forEach(function (el) { if (locked) el.setAttribute('aria-disabled', 'true'); else el.removeAttribute('aria-disabled'); });
+                const fi = sec.querySelector('input[type=file]'); if (fi) fi.disabled = locked;
+                const note = document.getElementById('backup-lock-note'); if (note) note.classList.toggle('hidden', !locked);
+            }
+        }
+
         (function migrateLegacyStorage() {
             try {
                 if (localStorage.getItem(STORAGE_MIGRATED_FLAG)) return;
@@ -1195,6 +1184,8 @@
                 localStorage.setItem(STORAGE_MIGRATED_FLAG, '1');
             } catch (e) { /* storage tidak tersedia / data lama rusak: lanjut dengan data default */ }
         })();
+        ensureFreeDay();
+        if (dailyResetDue()) { wipePersistedData(); accessSet(FREE_DAY_KEY, todayStr()); }   // lewat 00.00 saat aplikasi tertutup
         let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultData;
         let activeTab = 'beranda';
         let currentReceiptData = '';
@@ -1232,6 +1223,7 @@
         }
         // Mengembalikan referensi "idb:<id>". Jika IndexedDB gagal, foto tetap disimpan inline seperti sebelumnya.
         async function receiptPut(dataUrl) {
+            if (!isUnlocked()) return dataUrl;      // terkunci: foto hanya di memori, tidak ditulis ke IndexedDB
             try {
                 const blob = await (await fetch(dataUrl)).blob();
                 const id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -1461,7 +1453,9 @@
         }
 
         function saveData() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+            checkDailyReset();
+            // Tanpa kode akses data hanya hidup di memori (hilang saat dimuat ulang atau lewat 00.00)
+            if (isUnlocked()) localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
             renderApp();
         }
 
@@ -1538,6 +1532,7 @@
             updateBackupInfo();
             if (activeTab === 'logs') renderFullLogs();          // daftar riwayat ikut menyegarkan setelah edit/hapus/urungkan
             if (activeTab === 'analytics') renderAnalytics();
+            applyAccessUI();
         }
 
         function renderVehicleSwitcherTabs() {
@@ -1810,7 +1805,7 @@
 
             // 4. Pengingat backup (30 hari)
             const backupStatus = getBackupStatus();
-            if (backupStatus.overdue) {
+            if (backupStatus.overdue && isUnlocked()) {
                 alerts.push(backupStatus.last
                     ? `Sudah <b>${backupStatus.days} hari</b> sejak backup terakhir. Buka tab Garasi &rarr; Bagikan Backup.`
                     : `Data <b>belum pernah dibackup</b>. Buka tab Garasi &rarr; Bagikan Backup untuk menyimpannya ke Drive.`);
@@ -2183,6 +2178,7 @@
 
         // Export and Import JSON Data Logic
         async function exportDataJSON() {
+            if (!requireAccess('Ekspor JSON')) return;
             const backup = await buildBackupData();
             const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -2200,6 +2196,7 @@
         // Bagikan backup lewat menu share bawaan perangkat (mis. Simpan ke Google Drive).
         // Jika share file tidak didukung, otomatis fallback ke unduhan JSON biasa.
         async function shareBackupJSON() {
+            if (!requireAccess('Bagikan Backup')) return;
             const fileName = `autolog_backup_${todayStr()}.json`;
             try {
                 const backup = await buildBackupData();
@@ -2218,11 +2215,13 @@
 
         function importDataJSON(e) {
             const input = e.target;
+            if (!requireAccess('Impor JSON')) { input.value = ''; return; }
             const file = input.files[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = async function(event) {
+                if (!requireAccess('Impor JSON')) return;
                 try {
                     const parsed = JSON.parse(event.target.result);
                     if (parsed && parsed.vehicles) {
@@ -2965,6 +2964,11 @@
             migrateInlineReceipts();
             handleShortcutAction();
         };
+        // Periksa pergantian hari (00.00) saat berinteraksi, kembali ke tab, dan berkala
+        document.addEventListener('pointerdown', checkDailyReset, true);
+        document.addEventListener('keydown', checkDailyReset, true);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) checkDailyReset(); });
+        setInterval(checkDailyReset, 15000);
     </script>
 
     <!-- ===== PWA: banner "Pasang Aplikasi" (ditambahkan) ===== -->
